@@ -1,0 +1,6 @@
+#!/bin/sh
+if grep -qiE '(^Co-Authored-By:.*(claude|anthropic)|Generated with.*Claude|noreply@anthropic\.com)' "$1"; then
+    echo "ERROR: Claude/Anthropic attribution is not allowed in commit messages." >&2
+    echo "Remove the attribution and retry the commit." >&2
+    exit 1
+fi

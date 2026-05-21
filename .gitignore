@@ -1,0 +1,22 @@
+node_modules/
+package-lock.json
+.next
+
+dist/
+*.tsbuildinfo
+
+# Concerto runtime files (per-user state lives in ~/.concerto, not here)
+.concerto/
+
+*.log
+
+.env
+.env.*
+
+.DS_Store
+Thumbs.db
+
+.vscode/
+.idea/
+*.swp
+*~

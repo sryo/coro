@@ -1,0 +1,24 @@
+{
+  "name": "concerto",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Kanban board for Claude Code conversations. Each card is a conversation in its own git worktree.",
+  "workspaces": [
+    "packages/*"
+  ],
+  "bin": {
+    "concerto": "packages/daemon/bin/concerto.mjs"
+  },
+  "scripts": {
+    "prepare": "git config core.hooksPath .githooks 2>/dev/null || true",
+    "build": "tsc --build",
+    "clean": "tsc --build --clean",
+    "dev": "concurrently -k -n core,daemon \"npm run dev -w @concerto/core\" \"npm run dev -w @concerto/daemon\""
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.2",
+    "concurrently": "^9.2.1",
+    "nodemon": "^3.1.9",
+    "typescript": "^5.9.3"
+  }
+}

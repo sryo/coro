@@ -1,0 +1,6 @@
+{
+  "name": "@concerto/skill",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Claude Code skill — drives the concerto daemon from any repo."
+}
