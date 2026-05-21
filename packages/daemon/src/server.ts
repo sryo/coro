@@ -6,6 +6,8 @@ import { verifyAuth } from './auth';
 import projectsRoutes from './routes/projects';
 import stagesRoutes from './routes/stages';
 import cardsRoutes from './routes/cards';
+import messagesRoutes from './routes/messages';
+import './sse'; // wires core events → SSE
 
 export interface ServerOpts {
     port: number;
@@ -36,6 +38,7 @@ export function startServer(opts: ServerOpts): http.Server {
     app.route('/', projectsRoutes);
     app.route('/', stagesRoutes);
     app.route('/', cardsRoutes);
+    app.route('/', messagesRoutes);
 
     app.notFound((c) => c.json({ error: { code: 'not_found', message: 'Not found' } }, 404));
 

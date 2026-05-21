@@ -51,7 +51,7 @@ function buildBranchName(repoPath: string, slug: string, cardId: string): string
     const short = cardId.slice(-6);
     let candidate = `concerto/${truncateSlug(slug)}-${short}`;
     let n = 2;
-    while (gitSafe(repoPath, ['show-ref', '--verify', `refs/heads/${candidate}`])) {
+    while (gitSafe(repoPath, ['show-ref', '--verify', '--quiet', `refs/heads/${candidate}`]) !== null) {
         candidate = `concerto/${truncateSlug(slug)}-${short}-${n}`;
         n++;
         if (n > 99) throw new Error('could not allocate unique branch name');
