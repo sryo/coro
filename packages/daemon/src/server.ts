@@ -3,6 +3,9 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
 import { verifyAuth } from './auth';
+import projectsRoutes from './routes/projects';
+import stagesRoutes from './routes/stages';
+import cardsRoutes from './routes/cards';
 
 export interface ServerOpts {
     port: number;
@@ -29,6 +32,10 @@ export function startServer(opts: ServerOpts): http.Server {
         version: '0.0.0',
         uptime_ms: Date.now() - opts.startedAt,
     }));
+
+    app.route('/', projectsRoutes);
+    app.route('/', stagesRoutes);
+    app.route('/', cardsRoutes);
 
     app.notFound((c) => c.json({ error: { code: 'not_found', message: 'Not found' } }, 404));
 
