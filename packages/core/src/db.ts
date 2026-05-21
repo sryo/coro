@@ -93,4 +93,33 @@ const MIGRATIONS: ReadonlyArray<{ version: number; sql: string }> = [
             CREATE INDEX cards_project_stage ON cards(project_id, stage_id);
         `,
     },
+    {
+        version: 2,
+        sql: `
+            CREATE TABLE worktrees (
+                id TEXT PRIMARY KEY,
+                card_id TEXT NOT NULL UNIQUE REFERENCES cards(id) ON DELETE CASCADE,
+                path TEXT NOT NULL,
+                branch TEXT NOT NULL,
+                base_branch TEXT NOT NULL,
+                base_sha TEXT NOT NULL,
+                repo_path TEXT NOT NULL,
+                state TEXT NOT NULL,
+                last_seen_at INTEGER NOT NULL,
+                created_at INTEGER NOT NULL
+            );
+
+            CREATE TABLE events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                card_id TEXT REFERENCES cards(id) ON DELETE CASCADE,
+                project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+                kind TEXT NOT NULL,
+                actor TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                created_at INTEGER NOT NULL
+            );
+            CREATE INDEX events_card ON events(card_id, id);
+            CREATE INDEX events_project ON events(project_id, id);
+        `,
+    },
 ];
