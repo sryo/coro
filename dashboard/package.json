@@ -1,5 +1,5 @@
 {
-  "name": "concerto-dashboard",
+  "name": "coro-dashboard",
   "version": "0.0.0",
   "private": true,
   "scripts": {
@@ -9,8 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@concerto/client": "file:../packages/client",
-    "@concerto/types": "file:../packages/types",
+    "@coro/client": "file:../packages/client",
+    "@coro/types": "file:../packages/types",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
