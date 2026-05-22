@@ -15,6 +15,7 @@
     "@concerto/core": "*",
     "@hono/node-server": "^1.19.9",
     "hono": "^4.12.1",
-    "nanoid": "^5.1.6"
+    "nanoid": "^5.1.6",
+    "zod": "^4.1.13"
   }
 }

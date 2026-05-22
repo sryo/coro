@@ -3,7 +3,8 @@ import { Hono } from 'hono';
 import { RESPONSE_ALREADY_SENT } from '@hono/node-server/utils/response';
 import { conversations, cards, projects } from '@concerto/core';
 import { attachSSEStream } from '../sse';
-import { httpError, errorStatus } from './_helpers';
+import { httpError, errorStatus, parseJsonBody } from './_helpers';
+import { sendMessageBody } from './schemas';
 
 const router = new Hono();
 
@@ -11,10 +12,9 @@ router.post('/cards/:id/messages', async (c) => {
     const card = cards.getCard(c.req.param('id'));
     if (!card) return httpError(c, 404, 'not_found', 'card not found');
 
-    const body = await c.req.json().catch(() => null) as { content?: string; client_message_id?: string } | null;
-    if (!body?.content || body.content.trim().length === 0) {
-        return httpError(c, 400, 'bad_request', 'content required');
-    }
+    const parsed = await parseJsonBody(c, sendMessageBody);
+    if (!parsed.ok) return httpError(c, 400, 'bad_request', parsed.message);
+    const body = parsed.data;
 
     try {
         const result = conversations.sendMessage(card.id, body.content, { clientMessageId: body.client_message_id });

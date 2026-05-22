@@ -1,7 +1,15 @@
 import { Hono } from 'hono';
 import { cards, projects, stages, controller, worktrees, emitEvent, recordCardEvent } from '@concerto/core';
 import type { Actor } from '@concerto/core';
-import { httpError, errorStatus } from './_helpers';
+import { httpError, errorStatus, parseJsonBody } from './_helpers';
+import {
+    createCardBody,
+    updateCardBody,
+    transitionBody,
+    noteBody,
+    mergeBody,
+    abandonBody,
+} from './schemas';
 
 function parseActor(input: unknown, fallback: Actor): Actor {
     return input === 'user' || input === 'agent' || input === 'system' ? input : fallback;
@@ -28,13 +36,9 @@ router.get('/projects/:id/board', (c) => {
 router.post('/projects/:id/cards', async (c) => {
     const project = projects.getProject(c.req.param('id'));
     if (!project) return httpError(c, 404, 'not_found', 'project not found');
-    const body = await c.req.json().catch(() => null) as { title?: string; description?: string; stage_id?: string; model_override?: string } | null;
-    if (!body?.title || body.title.length === 0) {
-        return httpError(c, 400, 'bad_request', 'title required');
-    }
-    if (body.title.length > 200) {
-        return httpError(c, 400, 'bad_request', 'title must be ≤ 200 chars');
-    }
+    const parsed = await parseJsonBody(c, createCardBody);
+    if (!parsed.ok) return httpError(c, 400, 'bad_request', parsed.message);
+    const body = parsed.data;
     try {
         const card = cards.createCard({
             project_id: project.id,
@@ -56,9 +60,9 @@ router.get('/cards/:id', (c) => {
 });
 
 router.patch('/cards/:id', async (c) => {
-    const body = await c.req.json().catch(() => null) as Record<string, unknown> | null;
-    if (!body) return httpError(c, 400, 'bad_request', 'json body required');
-    const card = cards.updateCard(c.req.param('id'), body as any);
+    const parsed = await parseJsonBody(c, updateCardBody);
+    if (!parsed.ok) return httpError(c, 400, 'bad_request', parsed.message);
+    const card = cards.updateCard(c.req.param('id'), parsed.data);
     if (!card) return httpError(c, 404, 'not_found', 'card not found');
     return c.json(card);
 });
@@ -80,10 +84,9 @@ router.delete('/cards/:id', (c) => {
 });
 
 router.post('/cards/:id/transitions', async (c) => {
-    const body = await c.req.json().catch(() => null) as { to_stage_id?: string; actor?: controller.Actor; reason?: string } | null;
-    if (!body?.to_stage_id) {
-        return httpError(c, 400, 'bad_request', 'to_stage_id required');
-    }
+    const parsed = await parseJsonBody(c, transitionBody);
+    if (!parsed.ok) return httpError(c, 400, 'bad_request', parsed.message);
+    const body = parsed.data;
     const actor = parseActor(body.actor, 'user');
     const result = controller.transition({
         cardId: c.req.param('id'),
@@ -113,23 +116,21 @@ router.get('/cards/:id/diff', (c) => {
 });
 
 router.post('/cards/:id/notes', async (c) => {
-    const body = await c.req.json().catch(() => null) as { content?: string; actor?: controller.Actor } | null;
-    const content = (body?.content || '').trim();
-    if (!content) return httpError(c, 400, 'bad_request', 'content required');
+    const parsed = await parseJsonBody(c, noteBody);
+    if (!parsed.ok) return httpError(c, 400, 'bad_request', parsed.message);
+    const body = parsed.data;
     const card = cards.getCard(c.req.param('id'));
     if (!card) return httpError(c, 404, 'not_found', 'card not found');
-    const actor = parseActor(body?.actor, 'agent');
-    const at = recordCardEvent({ cardId: card.id, projectId: card.project_id, kind: 'note', actor, payload: { content } });
-    emitEvent('card:note', { card_id: card.id, project_id: card.project_id, content, actor, at });
+    const actor = parseActor(body.actor, 'agent');
+    const at = recordCardEvent({ cardId: card.id, projectId: card.project_id, kind: 'note', actor, payload: { content: body.content } });
+    emitEvent('card:note', { card_id: card.id, project_id: card.project_id, content: body.content, actor, at });
     return c.json({ ok: true, at });
 });
 
 router.post('/cards/:id/merge', async (c) => {
-    const body = await c.req.json().catch(() => ({})) as {
-        strategy?: 'squash' | 'merge';
-        commit_message?: string;
-        actor?: controller.Actor;
-    };
+    const parsed = await parseJsonBody(c, mergeBody, { allowEmpty: true });
+    if (!parsed.ok) return httpError(c, 400, 'bad_request', parsed.message);
+    const body = parsed.data;
     const result = controller.merge({
         cardId: c.req.param('id'),
         strategy: body.strategy,
@@ -147,7 +148,9 @@ router.post('/cards/:id/merge', async (c) => {
 });
 
 router.post('/cards/:id/abandon', async (c) => {
-    const body = await c.req.json().catch(() => ({})) as { stash_dirty?: boolean; actor?: controller.Actor };
+    const parsed = await parseJsonBody(c, abandonBody, { allowEmpty: true });
+    if (!parsed.ok) return httpError(c, 400, 'bad_request', parsed.message);
+    const body = parsed.data;
     try {
         const result = controller.abandon(c.req.param('id'), {
             stashDirty: body.stash_dirty !== false,

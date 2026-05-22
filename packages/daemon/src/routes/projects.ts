@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { projects } from '@concerto/core';
-import { httpError } from './_helpers';
+import { httpError, parseJsonBody } from './_helpers';
+import { createProjectBody, updateProjectBody } from './schemas';
 
 const router = new Hono();
 
@@ -21,10 +22,9 @@ router.get('/projects/by-path', (c) => {
 });
 
 router.post('/projects', async (c) => {
-    const body = await c.req.json().catch(() => null) as { name?: string; repo_path?: string; base_branch?: string } | null;
-    if (!body?.repo_path) {
-        return httpError(c, 400, 'bad_request', 'repo_path required');
-    }
+    const parsed = await parseJsonBody(c, createProjectBody);
+    if (!parsed.ok) return httpError(c, 400, 'bad_request', parsed.message);
+    const body = parsed.data;
     const existing = projects.getProjectByPath(body.repo_path);
     if (existing) return c.json(existing);
     const project = projects.createProject({
@@ -42,9 +42,9 @@ router.get('/projects/:id', (c) => {
 });
 
 router.patch('/projects/:id', async (c) => {
-    const body = await c.req.json().catch(() => null) as Record<string, unknown> | null;
-    if (!body) return httpError(c, 400, 'bad_request', 'json body required');
-    const project = projects.updateProject(c.req.param('id'), body as any);
+    const parsed = await parseJsonBody(c, updateProjectBody);
+    if (!parsed.ok) return httpError(c, 400, 'bad_request', parsed.message);
+    const project = projects.updateProject(c.req.param('id'), parsed.data);
     if (!project) return httpError(c, 404, 'not_found', 'project not found');
     return c.json(project);
 });

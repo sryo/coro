@@ -1,5 +1,6 @@
 import type { Context } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
+import type { z } from 'zod';
 
 type ErrorExtras = {
     hint?: string;
@@ -46,4 +47,34 @@ export function httpError(
         },
     };
     return c.json(body, status);
+}
+
+export type ParseBodyResult<T> =
+    | { ok: true; data: T }
+    | { ok: false; message: string };
+
+/**
+ * Parse a request body against a zod schema. Returns the data or a single
+ * joined message ready to feed to httpError(c, 400, 'bad_request', message).
+ * Routes can early-return on !ok without an extra wrapper helper.
+ *
+ * When `allowEmpty` is true, a missing/invalid body is treated as `{}` so
+ * the schema's defaults / optional fields decide the shape. Use this for
+ * endpoints (merge, abandon) where every field is optional.
+ */
+export async function parseJsonBody<T>(
+    c: Context,
+    schema: z.ZodType<T>,
+    opts: { allowEmpty?: boolean } = {},
+): Promise<ParseBodyResult<T>> {
+    const raw = await c.req.json().catch(() => null);
+    const input = raw === null && opts.allowEmpty ? {} : raw;
+    const parsed = schema.safeParse(input);
+    if (!parsed.success) {
+        const message = parsed.error.issues
+            .map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`)
+            .join('; ');
+        return { ok: false, message };
+    }
+    return { ok: true, data: parsed.data };
 }
