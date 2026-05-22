@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { cards, projects, stages, controller, worktrees, emitEvent, recordCardEvent } from '@concerto/core';
 import type { Actor } from '@concerto/core';
+import { httpError, errorStatus } from './_helpers';
 
 function parseActor(input: unknown, fallback: Actor): Actor {
     return input === 'user' || input === 'agent' || input === 'system' ? input : fallback;
@@ -10,14 +11,14 @@ const router = new Hono();
 
 router.get('/projects/:id/cards', (c) => {
     const project = projects.getProject(c.req.param('id'));
-    if (!project) return c.json({ error: { code: 'not_found', message: 'project not found' } }, 404);
+    if (!project) return httpError(c, 404, 'not_found', 'project not found');
     const stageId = c.req.query('stage') || undefined;
     return c.json(cards.listCards(project.id, stageId));
 });
 
 router.get('/projects/:id/board', (c) => {
     const project = projects.getProject(c.req.param('id'));
-    if (!project) return c.json({ error: { code: 'not_found', message: 'project not found' } }, 404);
+    if (!project) return httpError(c, 404, 'not_found', 'project not found');
     return c.json({
         cards: cards.listCards(project.id),
         worktree_meta: worktrees.getBoardMeta(project.id),
@@ -26,13 +27,13 @@ router.get('/projects/:id/board', (c) => {
 
 router.post('/projects/:id/cards', async (c) => {
     const project = projects.getProject(c.req.param('id'));
-    if (!project) return c.json({ error: { code: 'not_found', message: 'project not found' } }, 404);
+    if (!project) return httpError(c, 404, 'not_found', 'project not found');
     const body = await c.req.json().catch(() => null) as { title?: string; description?: string; stage_id?: string; model_override?: string } | null;
     if (!body?.title || body.title.length === 0) {
-        return c.json({ error: { code: 'bad_request', message: 'title required' } }, 400);
+        return httpError(c, 400, 'bad_request', 'title required');
     }
     if (body.title.length > 200) {
-        return c.json({ error: { code: 'bad_request', message: 'title must be ≤ 200 chars' } }, 400);
+        return httpError(c, 400, 'bad_request', 'title must be ≤ 200 chars');
     }
     try {
         const card = cards.createCard({
@@ -44,48 +45,44 @@ router.post('/projects/:id/cards', async (c) => {
         });
         return c.json(card, 201);
     } catch (err: any) {
-        return c.json({ error: { code: 'bad_request', message: err.message } }, 400);
+        return httpError(c, 400, 'bad_request', err.message);
     }
 });
 
 router.get('/cards/:id', (c) => {
     const card = cards.getCard(c.req.param('id'));
-    if (!card) return c.json({ error: { code: 'not_found', message: 'card not found' } }, 404);
+    if (!card) return httpError(c, 404, 'not_found', 'card not found');
     return c.json(card);
 });
 
 router.patch('/cards/:id', async (c) => {
     const body = await c.req.json().catch(() => null) as Record<string, unknown> | null;
-    if (!body) return c.json({ error: { code: 'bad_request', message: 'json body required' } }, 400);
+    if (!body) return httpError(c, 400, 'bad_request', 'json body required');
     const card = cards.updateCard(c.req.param('id'), body as any);
-    if (!card) return c.json({ error: { code: 'not_found', message: 'card not found' } }, 404);
+    if (!card) return httpError(c, 404, 'not_found', 'card not found');
     return c.json(card);
 });
 
 router.delete('/cards/:id', (c) => {
     const id = c.req.param('id');
     const card = cards.getCard(id);
-    if (!card) return c.json({ error: { code: 'not_found', message: 'card not found' } }, 404);
+    if (!card) return httpError(c, 404, 'not_found', 'card not found');
     try {
         cards.deleteCard(id);
         return c.json({ ok: true });
     } catch (err: any) {
         const allowed = stages.filterByKind(stages.listStages(card.project_id), 'backlog').map(s => s.id);
-        return c.json({
-            error: {
-                code: 'invalid_state',
-                message: err.message,
-                hint: 'move the card to a backlog stage first, or use POST /cards/:id/abandon',
-                allowed,
-            },
-        }, 409);
+        return httpError(c, 409, 'invalid_state', err.message, {
+            hint: 'move the card to a backlog stage first, or use POST /cards/:id/abandon',
+            allowed,
+        });
     }
 });
 
 router.post('/cards/:id/transitions', async (c) => {
     const body = await c.req.json().catch(() => null) as { to_stage_id?: string; actor?: controller.Actor; reason?: string } | null;
     if (!body?.to_stage_id) {
-        return c.json({ error: { code: 'bad_request', message: 'to_stage_id required' } }, 400);
+        return httpError(c, 400, 'bad_request', 'to_stage_id required');
     }
     const actor = parseActor(body.actor, 'user');
     const result = controller.transition({
@@ -95,22 +92,17 @@ router.post('/cards/:id/transitions', async (c) => {
         reason: body.reason,
     });
     if (!result.ok) {
-        const status = result.code === 'card_not_found' || result.code === 'stage_not_found' ? 404 : 409;
-        return c.json({
-            error: {
-                code: result.code,
-                message: result.message,
-                hint: result.hint,
-                allowed: result.allowed,
-            },
-        }, status);
+        return httpError(c, errorStatus(result.code) as 400 | 404 | 409, result.code, result.message, {
+            hint: result.hint,
+            allowed: result.allowed,
+        });
     }
     return c.json(result.card);
 });
 
 router.get('/cards/:id/worktree', (c) => {
     const status = worktrees.worktreeStatus(c.req.param('id'));
-    if (!status) return c.json({ error: { code: 'not_found', message: 'no worktree for this card' } }, 404);
+    if (!status) return httpError(c, 404, 'not_found', 'no worktree for this card');
     return c.json(status);
 });
 
@@ -123,9 +115,9 @@ router.get('/cards/:id/diff', (c) => {
 router.post('/cards/:id/notes', async (c) => {
     const body = await c.req.json().catch(() => null) as { content?: string; actor?: controller.Actor } | null;
     const content = (body?.content || '').trim();
-    if (!content) return c.json({ error: { code: 'bad_request', message: 'content required' } }, 400);
+    if (!content) return httpError(c, 400, 'bad_request', 'content required');
     const card = cards.getCard(c.req.param('id'));
-    if (!card) return c.json({ error: { code: 'not_found', message: 'card not found' } }, 404);
+    if (!card) return httpError(c, 404, 'not_found', 'card not found');
     const actor = parseActor(body?.actor, 'agent');
     const at = recordCardEvent({ cardId: card.id, projectId: card.project_id, kind: 'note', actor, payload: { content } });
     emitEvent('card:note', { card_id: card.id, project_id: card.project_id, content, actor, at });
@@ -145,19 +137,11 @@ router.post('/cards/:id/merge', async (c) => {
         actor: body.actor,
     });
     if (!result.ok) {
-        const status =
-            result.code === 'card_not_found' || result.code === 'project_not_found' || result.code === 'stage_not_found'
-                ? 404
-                : 409;
-        return c.json({
-            error: {
-                code: result.code,
-                message: result.message,
-                hint: result.hint,
-                conflicts: result.conflicts,
-                allowed: result.allowed,
-            },
-        }, status);
+        return httpError(c, errorStatus(result.code) as 400 | 404 | 409, result.code, result.message, {
+            hint: result.hint,
+            conflicts: result.conflicts,
+            allowed: result.allowed,
+        });
     }
     return c.json({ card: result.card, merge: result.merge });
 });
@@ -169,17 +153,14 @@ router.post('/cards/:id/abandon', async (c) => {
             stashDirty: body.stash_dirty !== false,
             actor: body.actor,
         });
-        if (!result) return c.json({ error: { code: 'not_found', message: 'card not found' } }, 404);
+        if (!result) return httpError(c, 404, 'not_found', 'card not found');
         return c.json(result);
     } catch (err: any) {
-        return c.json({
-            error: {
-                code: err.code || 'abandon_failed',
-                message: err.message,
-                hint: err.hint,
-                dirty_files: err.dirty_files,
-            },
-        }, 409);
+        const code = err.code || 'abandon_failed';
+        return httpError(c, errorStatus(code) as 400 | 404 | 409, code, err.message, {
+            hint: err.hint,
+            dirty_files: err.dirty_files,
+        });
     }
 });
 

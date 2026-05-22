@@ -3,35 +3,33 @@ import { Hono } from 'hono';
 import { RESPONSE_ALREADY_SENT } from '@hono/node-server/utils/response';
 import { conversations, cards, projects } from '@concerto/core';
 import { attachSSEStream } from '../sse';
+import { httpError, errorStatus } from './_helpers';
 
 const router = new Hono();
 
 router.post('/cards/:id/messages', async (c) => {
     const card = cards.getCard(c.req.param('id'));
-    if (!card) return c.json({ error: { code: 'not_found', message: 'card not found' } }, 404);
+    if (!card) return httpError(c, 404, 'not_found', 'card not found');
 
     const body = await c.req.json().catch(() => null) as { content?: string; client_message_id?: string } | null;
     if (!body?.content || body.content.trim().length === 0) {
-        return c.json({ error: { code: 'bad_request', message: 'content required' } }, 400);
+        return httpError(c, 400, 'bad_request', 'content required');
     }
 
     try {
         const result = conversations.sendMessage(card.id, body.content, { clientMessageId: body.client_message_id });
         return c.json(result, 202);
     } catch (err: any) {
-        return c.json({
-            error: {
-                code: err.code || 'send_failed',
-                message: err.message,
-                hint: err.hint,
-            },
-        }, err.code === 'card_not_active' ? 409 : 400);
+        const code = err.code || 'send_failed';
+        return httpError(c, errorStatus(code) as 400 | 404 | 409, code, err.message, {
+            hint: err.hint,
+        });
     }
 });
 
 router.get('/cards/:id/messages', (c) => {
     const card = cards.getCard(c.req.param('id'));
-    if (!card) return c.json({ error: { code: 'not_found', message: 'card not found' } }, 404);
+    if (!card) return httpError(c, 404, 'not_found', 'card not found');
     const sinceId = parseInt(c.req.query('since_id') || '0', 10);
     const limit = Math.min(parseInt(c.req.query('limit') || '200', 10), 1000);
     return c.json(conversations.listMessages(card.id, sinceId, limit));
@@ -39,7 +37,7 @@ router.get('/cards/:id/messages', (c) => {
 
 router.get('/projects/:id/stream', (c) => {
     const project = projects.getProject(c.req.param('id'));
-    if (!project) return c.json({ error: { code: 'not_found', message: 'project not found' } }, 404);
+    if (!project) return httpError(c, 404, 'not_found', 'project not found');
     const nodeRes = (c.env as { outgoing: http.ServerResponse }).outgoing;
     attachSSEStream(nodeRes, { projectId: project.id });
     return RESPONSE_ALREADY_SENT;
@@ -47,7 +45,7 @@ router.get('/projects/:id/stream', (c) => {
 
 router.get('/cards/:id/stream', (c) => {
     const card = cards.getCard(c.req.param('id'));
-    if (!card) return c.json({ error: { code: 'not_found', message: 'card not found' } }, 404);
+    if (!card) return httpError(c, 404, 'not_found', 'card not found');
     const nodeRes = (c.env as { outgoing: http.ServerResponse }).outgoing;
     attachSSEStream(nodeRes, { cardId: card.id });
     return RESPONSE_ALREADY_SENT;
@@ -55,7 +53,7 @@ router.get('/cards/:id/stream', (c) => {
 
 router.post('/cards/:id/interrupt', (c) => {
     const card = cards.getCard(c.req.param('id'));
-    if (!card) return c.json({ error: { code: 'not_found', message: 'card not found' } }, 404);
+    if (!card) return httpError(c, 404, 'not_found', 'card not found');
     const aborted = conversations.abortTurn(card.id);
     return c.json({ aborted });
 });

@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { projects } from '@concerto/core';
+import { httpError } from './_helpers';
 
 const router = new Hono();
 
@@ -8,17 +9,13 @@ router.get('/projects', (c) => c.json(projects.listProjects()));
 router.get('/projects/by-path', (c) => {
     const repoPath = c.req.query('path');
     if (!repoPath) {
-        return c.json({ error: { code: 'bad_request', message: 'path query param required' } }, 400);
+        return httpError(c, 400, 'bad_request', 'path query param required');
     }
     const project = projects.getProjectByPath(repoPath);
     if (!project) {
-        return c.json({
-            error: {
-                code: 'unbound',
-                message: 'repo not bound to a project',
-                hint: 'POST /projects with this path to bind it',
-            },
-        }, 404);
+        return httpError(c, 404, 'unbound', 'repo not bound to a project', {
+            hint: 'POST /projects with this path to bind it',
+        });
     }
     return c.json(project);
 });
@@ -26,7 +23,7 @@ router.get('/projects/by-path', (c) => {
 router.post('/projects', async (c) => {
     const body = await c.req.json().catch(() => null) as { name?: string; repo_path?: string; base_branch?: string } | null;
     if (!body?.repo_path) {
-        return c.json({ error: { code: 'bad_request', message: 'repo_path required' } }, 400);
+        return httpError(c, 400, 'bad_request', 'repo_path required');
     }
     const existing = projects.getProjectByPath(body.repo_path);
     if (existing) return c.json(existing);
@@ -40,15 +37,15 @@ router.post('/projects', async (c) => {
 
 router.get('/projects/:id', (c) => {
     const project = projects.getProject(c.req.param('id'));
-    if (!project) return c.json({ error: { code: 'not_found', message: 'project not found' } }, 404);
+    if (!project) return httpError(c, 404, 'not_found', 'project not found');
     return c.json(project);
 });
 
 router.patch('/projects/:id', async (c) => {
     const body = await c.req.json().catch(() => null) as Record<string, unknown> | null;
-    if (!body) return c.json({ error: { code: 'bad_request', message: 'json body required' } }, 400);
+    if (!body) return httpError(c, 400, 'bad_request', 'json body required');
     const project = projects.updateProject(c.req.param('id'), body as any);
-    if (!project) return c.json({ error: { code: 'not_found', message: 'project not found' } }, 404);
+    if (!project) return httpError(c, 404, 'not_found', 'project not found');
     return c.json(project);
 });
 
