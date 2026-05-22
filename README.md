@@ -4,8 +4,6 @@ A Kanban board for Claude Code conversations.
 
 One card = one Claude conversation = one git worktree. Cards run in parallel without stepping on each other. Ships as a Claude Code skill, a local daemon, and a Next.js dashboard.
 
-**Status:** v0, pre-alpha. See [PLAN.md](./PLAN.md) for the design doc and [AGENTS.md](./AGENTS.md) for the agent + codebase conventions.
-
 ---
 
 ## Install
@@ -29,13 +27,7 @@ npm install
 npm run dev                   # http://localhost:7420
 ```
 
-The daemon auto-spawns on the first `/concerto-*` call. Manual controls:
-
-```sh
-concerto daemon start         # writes pid + token to ~/.concerto/daemon.json
-concerto daemon status        # health probe
-concerto daemon logs          # tail ~/.concerto/daemon.log
-```
+The daemon auto-spawns on the first `/concerto-*` call. Manual: `concerto daemon {start,status,logs}` (state in `~/.concerto/`).
 
 ---
 
@@ -46,25 +38,19 @@ cd ~/code/my-project
 /concerto-new "fix the login redirect"
 ```
 
-First run in a new repo binds it (keyed by `git rev-parse --show-toplevel`) and lands the card in **Backlog**.
+First run in a new repo binds it and lands the card in **Backlog**.
 
 ```
 /concerto-start <card-id>
 ```
 
-Creates a worktree at `$GIT_COMMON_DIR/concerto-worktrees/<card-id>` on a fresh `concerto/<slug>-<short-id>` branch, moves the card to the first **active** stage, and writes `.mcp.json` so the per-card Claude picks up `concerto.*` tools. Any prefix of the card id works.
+Creates a worktree at `$GIT_COMMON_DIR/concerto-worktrees/<card-id>` on a fresh `concerto/<slug>-<short-id>` branch, moves the card to the first **active** stage, and writes `.mcp.json` so the per-card Claude picks up `concerto.*` tools.
 
 ```
 /concerto-say <card-id> "start with the redirect param, then check the cookie domain"
 ```
 
-The reply streams into the terminal and the dashboard. Board cues:
-
-- Animated dot — agent mid-turn
-- Orange dot — uncommitted changes
-- Red dot — last merge attempt conflicted
-- "rebase" badge — >10 commits behind base
-- "worktree missing" — worktree gone from disk
+The reply streams into the terminal and the dashboard. Board dots signal turn activity, uncommitted changes, and conflicted merges; rebase and worktree-missing warnings live on card detail.
 
 The agent moves itself between active stages and calls `concerto.request_review` when it's done. Only a human can move a card to **Done**.
 
@@ -87,14 +73,12 @@ Removes the worktree. Uncommitted work is stashed to `refs/concerto-abandoned/<c
 ```
 concerto/
 ├── packages/
-│   ├── core/        db, claude driver, worktree, state machine, MCP tools
+│   ├── core/        db, claude driver, worktree, state machine
 │   ├── daemon/      HTTP server (Hono), CLI entry, MCP bridge
+│   ├── types/       shared interfaces
+│   ├── client/      DaemonClient: discover, ensureRunning, request, stream
 │   └── skill/       /concerto + /concerto-* verb skills
 └── dashboard/       Next.js app
 ```
 
-- DB: `~/.concerto/state.db` (SQLite, WAL).
-- Daemon: `http://localhost:7419`, bearer token in `~/.concerto/daemon.json` (chmod 600).
-- Dashboard: `http://localhost:7420`.
-
-See [AGENTS.md](./AGENTS.md) for conventions and [PLAN.md](./PLAN.md) §5 for the state machine, §10 for milestones.
+DB at `~/.concerto/state.db` (SQLite, WAL). Daemon on `http://localhost:7419` (bearer token in `~/.concerto/daemon.json`, chmod 600). Dashboard on `http://localhost:7420`. See [AGENTS.md](./AGENTS.md), [PLAN.md](./PLAN.md), and [design.md](./design.md).
