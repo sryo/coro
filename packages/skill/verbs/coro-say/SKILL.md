@@ -1,12 +1,12 @@
 ---
-name: concerto-say
-description: "Send a message to a concerto card's Claude conversation and stream the response into this terminal. Use when the user wants to talk to the agent working on a specific card. The card must be in an active-kind stage (its worktree must exist). Auto-spawns the daemon and binds the repo if needed."
+name: coro-say
+description: "Send a message to a coro card's Claude conversation and stream the response into this terminal. Use when the user wants to talk to the agent working on a specific card. The card must be in an active-kind stage (its worktree must exist). Auto-spawns the daemon and binds the repo if needed."
 license: MIT
 ---
 
-> Shared context: read `../concerto/shared.md` first.
+> Shared context: read `../coro/shared.md` first.
 
-# /concerto-say
+# /coro-say
 
 Inputs:
 - `card-id` (required) — full id, slug, or unambiguous prefix
@@ -14,10 +14,10 @@ Inputs:
 
 Steps:
 
-1. Resolve project + card (same disambiguation as `/concerto-start`).
+1. Resolve project + card (same disambiguation as `/coro-start`).
 
 2. Verify the card has a worktree:
-    - If `card.worktree_path` is null → tell the user "card needs to be started first" and suggest `/concerto-start <card-id>`. Stop.
+    - If `card.worktree_path` is null → tell the user "card needs to be started first" and suggest `/coro-start <card-id>`. Stop.
 
 3. Build the JSON payload safely:
    ```sh

@@ -1,12 +1,12 @@
 ---
-name: concerto-new
-description: "Create a new card in the concerto board for this repo. Use when the user wants to capture an idea, task, or todo. The card lands in Backlog by default. The daemon and project binding auto-spawn if needed."
+name: coro-new
+description: "Create a new card in the coro board for this repo. Use when the user wants to capture an idea, task, or todo. The card lands in Backlog by default. The daemon and project binding auto-spawn if needed."
 license: MIT
 ---
 
-> Shared context: read `../concerto/shared.md` and `../concerto/schema.md` first.
+> Shared context: read `../coro/shared.md` and `../coro/schema.md` first.
 
-# /concerto-new
+# /coro-new
 
 Inputs (interactive or from arg parsing):
 - `title` (required, ≤ 200 chars)
@@ -14,9 +14,9 @@ Inputs (interactive or from arg parsing):
 
 Steps:
 
-1. Resolve project: run `node <skill_dir>/../concerto/scripts/ensure-bound.mjs`. On exit code 3 (`{reason: "unbound"}`), ask the user "Bind this repo (<name>) to Concerto? [Y/n]". On yes, re-run with `--auto-bind`. On no, stop.
+1. Resolve project: run `node <skill_dir>/../coro/scripts/ensure-bound.mjs`. On exit code 3 (`{reason: "unbound"}`), ask the user "Bind this repo (<name>) to Coro? [Y/n]". On yes, re-run with `--auto-bind`. On no, stop.
 
-2. Read `~/.concerto/daemon.json` for `{port, token}`.
+2. Read `~/.coro/daemon.json` for `{port, token}`.
 
 3. Build the JSON payload with `jq -n --arg t "$TITLE" --arg d "$DESCRIPTION" '{title: $t, description: $d}'` (never interpolate raw shell — see shared.md).
 
@@ -24,7 +24,7 @@ Steps:
 
 5. Print the result tersely:
    ```
-   concerto: card created
+   coro: card created
      id     <id>
      slug   <slug>
      stage  Backlog

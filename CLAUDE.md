@@ -1,4 +1,4 @@
-# Concerto
+# Coro
 
 See [AGENTS.md](./AGENTS.md) for the canonical reference — it covers both the per-card runtime agent (injected as system prompt by the daemon) and Claude Code working on this codebase.
 

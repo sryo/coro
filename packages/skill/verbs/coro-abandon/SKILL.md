@@ -1,23 +1,23 @@
 ---
-name: concerto-abandon
-description: "Abandon a concerto card. Removes the card's git worktree and deletes the branch. If the worktree has uncommitted work, it's stashed to refs/concerto-abandoned/<card-id> so it can be recovered later. Use when the user decides a card is wrong-headed or no longer needed."
+name: coro-abandon
+description: "Abandon a coro card. Removes the card's git worktree and deletes the branch. If the worktree has uncommitted work, it's stashed to refs/coro-abandoned/<card-id> so it can be recovered later. Use when the user decides a card is wrong-headed or no longer needed."
 license: MIT
 ---
 
-> Shared context: read `../concerto/shared.md` first.
+> Shared context: read `../coro/shared.md` first.
 
-# /concerto-abandon
+# /coro-abandon
 
 Inputs:
 - `card-id` (required) — the full id, slug, or unambiguous prefix
 
 Steps:
 
-1. Resolve project + card (same as `/concerto-start`).
+1. Resolve project + card (same as `/coro-start`).
 
 2. Before calling the API, fetch the worktree status (`GET /cards/<id>/worktree`). If `dirty_files > 0`, tell the user:
    ```
-   <N> uncommitted file(s) in the worktree. They'll be stashed to refs/concerto-abandoned/<short-id> on abandon.
+   <N> uncommitted file(s) in the worktree. They'll be stashed to refs/coro-abandoned/<short-id> on abandon.
    Continue? [y/N]
    ```
    Stop unless they confirm.
@@ -26,7 +26,7 @@ Steps:
 
 4. On success, print:
    ```
-   concerto: abandoned
+   coro: abandoned
      card    <id>  <title>
    ```
    If `worktree.stashed_ref` is present, add:

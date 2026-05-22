@@ -1,4 +1,4 @@
-# Concerto data model
+# Coro data model
 
 ## Project
 
@@ -79,8 +79,8 @@ created_at          number
 ```
 id           string
 card_id      string  unique
-path         string  $GIT_COMMON_DIR/concerto-worktrees/<card-id>
-branch       string  concerto/<slug>-<short-id>
+path         string  $GIT_COMMON_DIR/coro-worktrees/<card-id>
+branch       string  coro/<slug>-<short-id>
 base_branch  string
 base_sha     string
 state        enum    'active' | 'merged' | 'abandoned' | 'missing'

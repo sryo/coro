@@ -1,4 +1,4 @@
-# Concerto — v0 Plan
+# Coro — v0 Plan
 
 One card = one conversation = one git worktree.
 Local daemon + Next.js board + Claude Code skill.
@@ -24,7 +24,7 @@ Local daemon + Next.js board + Claude Code skill.
 - M1: projects, stages, cards CRUD + binding (commit b79c437)
 - M2: worktree manager + state machine (commit 67b1f4e)
 - M3: per-card Claude conversation runner (commit f8ec83f)
-- Rearchitect v0.1: @concerto/types + @concerto/client, zod at routes,
+- Rearchitect v0.1: @coro/types + @coro/client, zod at routes,
   standard error envelope, SSE-only dashboard, MCP moved from core
   to daemon, structured logging, Vitest + in-process e2e (19 commits)
 

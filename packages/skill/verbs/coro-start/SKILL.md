@@ -1,12 +1,12 @@
 ---
-name: concerto-start
-description: "Start work on a concerto card. Transitions the card into the first 'active' kind stage of its project, which creates a git worktree on a fresh branch off the base. Use when the user wants to begin work on a specific card. The card id (or its slug or short prefix) is required."
+name: coro-start
+description: "Start work on a coro card. Transitions the card into the first 'active' kind stage of its project, which creates a git worktree on a fresh branch off the base. Use when the user wants to begin work on a specific card. The card id (or its slug or short prefix) is required."
 license: MIT
 ---
 
-> Shared context: read `../concerto/shared.md` first.
+> Shared context: read `../coro/shared.md` first.
 
-# /concerto-start
+# /coro-start
 
 Inputs:
 - `card-id` (required) — the full id, slug, or unambiguous prefix
@@ -29,7 +29,7 @@ Steps:
 
 5. On success, the response is the updated card with `branch_name` and `worktree_path` populated. Print:
    ```
-   concerto: started
+   coro: started
      card     <id>  <title>
      stage    <new-stage-name>
      branch   <branch_name>

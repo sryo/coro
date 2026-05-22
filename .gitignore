@@ -11,8 +11,8 @@ dashboard/.next/
 dashboard/next-env.d.ts
 dashboard/next-env.d.ts.bak
 
-# Concerto runtime files (per-user state lives in ~/.concerto, not here)
-.concerto/
+# Coro runtime files (per-user state lives in ~/.coro, not here)
+.coro/
 
 *.log
 

@@ -1,12 +1,12 @@
 ---
-name: concerto-merge
-description: "Squash-merge a concerto card's worktree into the project's base branch. Requires the card to be in a 'done' kind stage (i.e. the human has already approved it from Review). Cleans up the worktree and moves the card to the archive (Merged) stage. Use when the user has approved a card and wants to land the work."
+name: coro-merge
+description: "Squash-merge a coro card's worktree into the project's base branch. Requires the card to be in a 'done' kind stage (i.e. the human has already approved it from Review). Cleans up the worktree and moves the card to the archive (Merged) stage. Use when the user has approved a card and wants to land the work."
 license: MIT
 ---
 
-> Shared context: read `../concerto/shared.md` first.
+> Shared context: read `../coro/shared.md` first.
 
-# /concerto-merge
+# /coro-merge
 
 Inputs:
 - `card-id` (required) — the full id, slug, or unambiguous prefix
@@ -16,7 +16,7 @@ Steps:
 
 1. Resolve project via `ensure-bound.mjs`. On unbound, ask once and bind.
 
-2. Resolve the card (same lookup as `/concerto-start`).
+2. Resolve the card (same lookup as `/coro-start`).
 
 3. Check the card's current stage. Fetch stages with `GET /projects/<project_id>/stages`. If the card's stage is not `kind === 'done'`, surface the issue clearly:
    - If `kind === 'review'` → tell the user "Card is in Review. Approve it first (dashboard) or move it to a Done stage manually." Stop.
@@ -29,7 +29,7 @@ Steps:
 
 5. On 200, the response is `{ card, merge: { sha, strategy, already_merged } }`. Print:
    ```
-   concerto: merged
+   coro: merged
      card     <id>  <title>
      branch   <previous branch_name from before>  →  <base_branch>
      commit   <sha7>  <commit_message>
@@ -40,12 +40,12 @@ Steps:
 6. On 409 with `code === 'conflict'`:
    - The response includes `error.conflicts: string[]` (file paths). Print:
      ```
-     concerto: merge conflict
+     coro: merge conflict
        <file path>
        <file path>
        ...
      ```
-   - Tell the user: "Resolve in the worktree, commit, then retry /concerto-merge."
+   - Tell the user: "Resolve in the worktree, commit, then retry /coro-merge."
    - Stop.
 
 7. On 409 with `code === 'merge_requires_done'`: print the daemon's hint (asks the user to approve from Review first). Stop.

@@ -1,21 +1,21 @@
-# Shared context for concerto skills
+# Shared context for coro skills
 
 ## Daemon discovery
 
-1. Read `~/.concerto/daemon.json`. Expect `{ port, token, pid, started_at }`.
+1. Read `~/.coro/daemon.json`. Expect `{ port, token, pid, started_at }`.
 2. Probe `GET http://localhost:<port>/health` with header `Authorization: Bearer <token>`.
 3. If 200 → use it.
-4. If anything else → run `concerto daemon start` (or the bundled `concerto-daemon-start` script) and re-probe for up to 3 seconds.
-5. Still down → tell the user to check `concerto daemon logs`. Stop.
+4. If anything else → run `coro daemon start` (or the bundled `coro-daemon-start` script) and re-probe for up to 3 seconds.
+5. Still down → tell the user to check `coro daemon logs`. Stop.
 
-`scripts/ensure-bound.mjs` handles steps 1–4 transparently — it auto-spawns the daemon via `@concerto/client` if needed and exits with the project info on stdout.
+`scripts/ensure-bound.mjs` handles steps 1–4 transparently — it auto-spawns the daemon via `@coro/client` if needed and exits with the project info on stdout.
 
 ## Project binding
 
 1. `git rev-parse --show-toplevel` → canonical repo path. Refuse to operate outside a git repo.
 2. `GET /projects/by-path?path=<canonical>` with the bearer token.
 3. If 200 → use the returned project id.
-4. If 404 with `{ reason: "unbound" }` → ask the user "Bind this repo to Concerto? [Y/n]". On yes, `POST /projects { name: <basename>, repo_path }`. Re-fetch and use the new id.
+4. If 404 with `{ reason: "unbound" }` → ask the user "Bind this repo to Coro? [Y/n]". On yes, `POST /projects { name: <basename>, repo_path }`. Re-fetch and use the new id.
 
 The script `scripts/ensure-bound.mjs` does this and prints the `project_id`.
 
@@ -54,4 +54,4 @@ The HTTP status code matches the failure (400, 401, 404, 409, 500). The `allowed
 
 ## Auth
 
-Token from `~/.concerto/daemon.json`, sent as `Authorization: Bearer <token>`. Localhost-only. The file is `chmod 600`.
+Token from `~/.coro/daemon.json`, sent as `Authorization: Bearer <token>`. Localhost-only. The file is `chmod 600`.

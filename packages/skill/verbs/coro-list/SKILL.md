@@ -1,12 +1,12 @@
 ---
-name: concerto-list
-description: "Print the concerto board for this repo as a text table — one section per stage, cards within. Use when the user wants a quick snapshot of the kanban without opening the dashboard. Auto-spawns the daemon and binds the repo on first use."
+name: coro-list
+description: "Print the coro board for this repo as a text table — one section per stage, cards within. Use when the user wants a quick snapshot of the kanban without opening the dashboard. Auto-spawns the daemon and binds the repo on first use."
 license: MIT
 ---
 
-> Shared context: read `../concerto/shared.md` first.
+> Shared context: read `../coro/shared.md` first.
 
-# /concerto-list
+# /coro-list
 
 Optional inputs:
 - `--stage <name>` — show only cards in this stage
