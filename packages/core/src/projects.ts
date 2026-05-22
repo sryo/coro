@@ -1,10 +1,10 @@
 import path from 'path';
 import { nanoid } from 'nanoid';
-import type { Project } from '@concerto/types';
+import type { Project } from '@coro/types';
 import { getDb } from './db';
 import { DEFAULT_STAGES } from './config';
 
-export type { Project } from '@concerto/types';
+export type { Project } from '@coro/types';
 
 export interface CreateProjectInput {
     name?: string;

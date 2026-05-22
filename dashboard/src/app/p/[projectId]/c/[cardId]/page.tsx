@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { serverGet } from '@/lib/server-api';
-import type { Card, Project, Stage, WorktreeStatus } from '@concerto/types';
+import type { Card, Project, Stage, WorktreeStatus } from '@coro/types';
 import { Conversation } from '@/components/conversation';
 import { CardDetailHeader } from '@/components/card-detail-header';
 import { CardActions } from '@/components/card-actions';

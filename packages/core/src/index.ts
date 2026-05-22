@@ -17,4 +17,4 @@ export type { Card, CreateCardInput } from './cards';
 export type { Message } from './conversations';
 export type { WorktreeRecord, WorktreeStatus, WorktreeBoardMeta } from './worktree';
 export type { Actor } from './controller';
-export type { ErrorResponse } from '@concerto/types';
+export type { ErrorResponse } from '@coro/types';

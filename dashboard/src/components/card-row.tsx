@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import type { Card, WorktreeBoardMeta } from '@concerto/types';
+import type { Card, WorktreeBoardMeta } from '@coro/types';
 import { TimeAgo } from '@/components/time-ago';
 
 interface Props {

@@ -17,7 +17,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { api } from '@/lib/api';
-import type { Stage, StageKind } from '@concerto/types';
+import type { Stage, StageKind } from '@coro/types';
 import { Button } from '@/components/ui/button';
 
 const KINDS: StageKind[] = ['backlog', 'ready', 'active', 'review', 'done', 'archive'];

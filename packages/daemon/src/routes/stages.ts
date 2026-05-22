@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { stages, projects } from '@concerto/core';
+import { stages, projects } from '@coro/core';
 import { httpError, parseJsonBody } from './_helpers';
 import { replaceStagesBody } from './schemas';
 

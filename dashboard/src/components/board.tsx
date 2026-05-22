@@ -13,7 +13,7 @@ import {
     type DragStartEvent,
 } from '@dnd-kit/core';
 import { api } from '@/lib/api';
-import type { Card, Stage } from '@concerto/types';
+import type { Card, Stage } from '@coro/types';
 import { useBoardState } from '@/hooks/use-board-state';
 import { Column } from '@/components/column';
 import { CardRow } from '@/components/card-row';

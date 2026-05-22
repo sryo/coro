@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { serverGet } from '@/lib/server-api';
-import type { Project, Stage } from '@concerto/types';
+import type { Project, Stage } from '@coro/types';
 import { StageEditor } from '@/components/stage-editor';
 import { ProjectMetaEditor } from '@/components/project-meta-editor';
 

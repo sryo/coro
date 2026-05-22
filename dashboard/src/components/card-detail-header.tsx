@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import type { Card, Stage, WorktreeStatus } from '@concerto/types';
+import type { Card, Stage, WorktreeStatus } from '@coro/types';
 import { StageSelect } from '@/components/stage-select';
 import { TimeAgo } from '@/components/time-ago';
 

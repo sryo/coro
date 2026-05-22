@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { api, openStream } from '@/lib/api';
-import type { Card, Message } from '@concerto/types';
+import type { Card, Message } from '@coro/types';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 

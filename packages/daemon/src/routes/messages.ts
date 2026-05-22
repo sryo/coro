@@ -1,7 +1,7 @@
 import http from 'http';
 import { Hono } from 'hono';
 import { RESPONSE_ALREADY_SENT } from '@hono/node-server/utils/response';
-import { conversations, cards, projects } from '@concerto/core';
+import { conversations, cards, projects } from '@coro/core';
 import { attachSSEStream } from '../sse';
 import { httpError, errorStatus, parseJsonBody } from './_helpers';
 import { sendMessageBody } from './schemas';

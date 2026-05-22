@@ -73,13 +73,13 @@ function sleep(ms: number): Promise<void> {
 
 function findConcertoBin(): string | null {
     try {
-        const which = execSync('command -v concerto', { encoding: 'utf8' }).trim();
+        const which = execSync('command -v coro', { encoding: 'utf8' }).trim();
         if (which && fs.existsSync(which)) return which;
     } catch {
         // not on PATH; fall through to sibling lookup
     }
     // Sibling install: client lives in packages/client/dist, daemon bin sits at packages/daemon/bin.
-    const sibling = path.resolve(__dirname, '..', '..', 'daemon', 'bin', 'concerto.mjs');
+    const sibling = path.resolve(__dirname, '..', '..', 'daemon', 'bin', 'coro.mjs');
     if (fs.existsSync(sibling)) return sibling;
     return null;
 }
@@ -341,7 +341,7 @@ export class DaemonClient {
 }
 
 function defaultBridgeScript(): string | null {
-    const sibling = path.resolve(__dirname, '..', '..', 'daemon', 'bin', 'concerto-mcp.mjs');
+    const sibling = path.resolve(__dirname, '..', '..', 'daemon', 'bin', 'coro-mcp.mjs');
     return fs.existsSync(sibling) ? sibling : null;
 }
 

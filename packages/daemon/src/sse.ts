@@ -1,5 +1,5 @@
 import http from 'http';
-import { onEvent } from '@concerto/core';
+import { onEvent } from '@coro/core';
 
 interface Client {
     res: http.ServerResponse;

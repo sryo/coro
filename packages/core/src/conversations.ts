@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid';
-import type { Message } from '@concerto/types';
+import type { Message } from '@coro/types';
 import { getDb } from './db';
 import { emitEvent } from './events';
 import { getCard, type Card } from './cards';
@@ -12,7 +12,7 @@ import type { ClaudeEvent } from './claude/types';
 // MessageRow is the persisted Message shape; alias kept for backward-compat
 // with existing core callers.
 export type MessageRow = Message;
-export type { Message } from '@concerto/types';
+export type { Message } from '@coro/types';
 
 interface ConversationRow {
     id: string;

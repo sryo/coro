@@ -1,7 +1,7 @@
-import type { EventKind, EventActor } from '@concerto/types';
+import type { EventKind, EventActor } from '@coro/types';
 import { getDb } from './db';
 
-export type { EventKind, EventActor } from '@concerto/types';
+export type { EventKind, EventActor } from '@coro/types';
 
 type EventListener = (type: string, data: Record<string, unknown>) => void;
 

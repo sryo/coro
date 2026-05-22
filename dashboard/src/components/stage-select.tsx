@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { api } from '@/lib/api';
-import type { Card, Stage } from '@concerto/types';
+import type { Card, Stage } from '@coro/types';
 
 interface Props {
     card: Card;

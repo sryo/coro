@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { cards, projects, controller, worktrees, createCardEvent } from '@concerto/core';
+import { cards, projects, controller, worktrees, createCardEvent } from '@coro/core';
 import { httpError, errorStatus, parseJsonBody } from './_helpers';
 import {
     createCardBody,

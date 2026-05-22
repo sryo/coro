@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { spawn } from 'child_process';
-import { CONCERTO_HOME, DAEMON_INFO_FILE, LOG_FILE } from '@concerto/core';
+import { CONCERTO_HOME, DAEMON_INFO_FILE, LOG_FILE } from '@coro/core';
 import { readDaemonInfo } from './auth';
 
 const PID_FILE = path.join(CONCERTO_HOME, 'daemon.pid');

@@ -1,11 +1,11 @@
 import { nanoid } from 'nanoid';
-import type { Card } from '@concerto/types';
+import type { Card } from '@coro/types';
 import { getDb } from './db';
 import { slugify } from './slug';
 import { getDefaultStage, getStage, listStages, filterByKind } from './stages';
 import { emitEvent } from './events';
 
-export type { Card } from '@concerto/types';
+export type { Card } from '@coro/types';
 
 export type CanDeleteResult =
     | { ok: true }

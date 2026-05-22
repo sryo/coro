@@ -11,8 +11,8 @@ import {
     setLogSink,
     getDb,
     worktrees,
-} from '@concerto/core';
-import { DaemonClient } from '@concerto/client';
+} from '@coro/core';
+import { DaemonClient } from '@coro/client';
 import { startServer } from './server';
 import { generateToken, writeDaemonInfo, clearDaemonInfo } from './auth';
 
@@ -21,7 +21,7 @@ const LOG_ROTATE_BYTES = 10 * 1024 * 1024; // 10MB cap; rotates to .1/.2/.3
 const LOG_ROTATE_KEEP = 3;
 
 function mcpBridgeScript(): string {
-    return path.resolve(__dirname, '..', 'bin', 'concerto-mcp.mjs');
+    return path.resolve(__dirname, '..', 'bin', 'coro-mcp.mjs');
 }
 
 interface LogFileSink {

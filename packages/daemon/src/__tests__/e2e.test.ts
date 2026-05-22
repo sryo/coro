@@ -17,8 +17,8 @@ type ServerMod = {
     generateToken: typeof import('../auth').generateToken;
 };
 type CoreMod = {
-    closeDb: typeof import('@concerto/core').closeDb;
-    stages: typeof import('@concerto/core').stages;
+    closeDb: typeof import('@coro/core').closeDb;
+    stages: typeof import('@coro/core').stages;
 };
 
 function git(cwd: string, args: string[]): string {
@@ -68,8 +68,8 @@ describe('daemon end-to-end', () => {
         const serverMod = await import('../server') as unknown as ServerMod;
         const authMod = await import('../auth') as unknown as ServerMod;
         coreMod = {
-            closeDb: (await import('@concerto/core')).closeDb,
-            stages: (await import('@concerto/core')).stages,
+            closeDb: (await import('@coro/core')).closeDb,
+            stages: (await import('@coro/core')).stages,
         };
         token = authMod.generateToken();
         auth = { Authorization: `Bearer ${token}` };

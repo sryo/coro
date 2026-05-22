@@ -2,12 +2,12 @@ import path from 'path';
 import fs from 'fs';
 import { execFileSync } from 'child_process';
 import { nanoid } from 'nanoid';
-import type { WorktreeRecord, WorktreeStatus, WorktreeBoardMeta } from '@concerto/types';
+import type { WorktreeRecord, WorktreeStatus, WorktreeBoardMeta } from '@coro/types';
 import { getDb } from './db';
 import { DIFF_BYTE_CAP } from './config';
 import { emitEvent } from './events';
 
-export type { WorktreeRecord, WorktreeStatus, WorktreeBoardMeta } from '@concerto/types';
+export type { WorktreeRecord, WorktreeStatus, WorktreeBoardMeta } from '@coro/types';
 
 // Optional hook fired after a worktree is created. Daemon uses this to drop a
 // .mcp.json into the worktree without core having to know what MCP is.

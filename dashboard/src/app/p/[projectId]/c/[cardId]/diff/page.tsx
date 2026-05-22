@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { serverGet, serverGetText } from '@/lib/server-api';
-import type { Card, Project } from '@concerto/types';
+import type { Card, Project } from '@coro/types';
 
 export default async function DiffPage({
     params,

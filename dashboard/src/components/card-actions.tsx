@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
-import type { Card, Stage } from '@concerto/types';
+import type { Card, Stage } from '@coro/types';
 import { Button } from '@/components/ui/button';
 
 interface Props {

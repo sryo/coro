@@ -1,8 +1,8 @@
 import { nanoid } from 'nanoid';
-import type { Stage, StageKind } from '@concerto/types';
+import type { Stage, StageKind } from '@coro/types';
 import { getDb } from './db';
 
-export type { Stage, StageKind } from '@concerto/types';
+export type { Stage, StageKind } from '@coro/types';
 
 export interface StageInput {
     id?: string;

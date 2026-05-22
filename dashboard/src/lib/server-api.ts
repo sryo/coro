@@ -1,11 +1,11 @@
 // Server-only fetch helpers used by Server Components for the initial render.
 //
-// Wraps @concerto/client.DaemonClient with a `getServerClient()` singleton.
+// Wraps @coro/client.DaemonClient with a `getServerClient()` singleton.
 // The Next dev server is long-lived, so one client per process is plenty.
 // Read calls swallow daemon-down errors and return null so SSR pages render
 // an empty state rather than 500ing.
 
-import { DaemonClient } from '@concerto/client';
+import { DaemonClient } from '@coro/client';
 
 let cached: DaemonClient | null = null;
 

@@ -2,7 +2,7 @@ import http from 'http';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
-import { createLogger } from '@concerto/core';
+import { createLogger } from '@coro/core';
 import { verifyAuth } from './auth';
 import projectsRoutes from './routes/projects';
 import stagesRoutes from './routes/stages';

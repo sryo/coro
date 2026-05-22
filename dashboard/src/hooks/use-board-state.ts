@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { api, openProjectStream } from '@/lib/api';
-import type { Card, WorktreeBoardMeta } from '@concerto/types';
+import type { Card, WorktreeBoardMeta } from '@coro/types';
 
 interface BoardResponse {
     cards: Card[];

@@ -1,8 +1,8 @@
 import path from 'path';
 import os from 'os';
-import type { StageKind } from '@concerto/types';
+import type { StageKind } from '@coro/types';
 
-export type { StageKind } from '@concerto/types';
+export type { StageKind } from '@coro/types';
 
 export const CONCERTO_HOME = process.env.CONCERTO_HOME
     || path.join(os.homedir(), '.concerto');

@@ -9,7 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
 
-// Resolve @concerto/client from the sibling daemon install (skill ships standalone,
+// Resolve @coro/client from the sibling daemon install (skill ships standalone,
 // so we can't rely on node_modules lookup the way a packaged consumer would).
 const here = path.dirname(fileURLToPath(import.meta.url));
 const clientEntry = path.resolve(here, '..', '..', 'client', 'dist', 'index.js');

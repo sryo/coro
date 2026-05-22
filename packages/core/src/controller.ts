@@ -1,4 +1,4 @@
-import type { Actor, StageKind } from '@concerto/types';
+import type { Actor, StageKind } from '@coro/types';
 import { getDb } from './db';
 import { getCard, type Card } from './cards';
 import { getStage, listStages, findByKind, type Stage } from './stages';
@@ -10,7 +10,7 @@ import {
 } from './worktree';
 import { createCardEvent } from './events';
 
-export type { Actor } from '@concerto/types';
+export type { Actor } from '@coro/types';
 
 /**
  * Parse an unknown actor field into the typed Actor union, falling back to a

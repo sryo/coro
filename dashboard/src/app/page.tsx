@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { serverGet } from '@/lib/server-api';
-import type { Project } from '@concerto/types';
+import type { Project } from '@coro/types';
 
 export default async function HomePage() {
     const projects = await serverGet<Project[]>('/projects');
