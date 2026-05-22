@@ -6,6 +6,7 @@ import type { WorktreeRecord, WorktreeStatus, WorktreeBoardMeta } from '@coro/ty
 import { getDb } from './db';
 import { DIFF_BYTE_CAP } from './config';
 import { emitEvent } from './events';
+import { getCard } from './cards';
 
 export type { WorktreeRecord, WorktreeStatus, WorktreeBoardMeta } from '@coro/types';
 
@@ -143,6 +144,9 @@ export function createWorktree(input: CreateWorktreeInput): WorktreeRecord {
         dirty_files: 0,
         behind: 0,
         merge_conflict_at: null,
+        additions: 0,
+        deletions: 0,
+        changed_files: 0,
     };
 
     try { createHook?.({ worktreePath, cardId: input.cardId }); } catch {}
@@ -216,6 +220,7 @@ export function removeWorktree(cardId: string, opts: RemoveWorktreeOpts = {}): {
     getDb().prepare('UPDATE worktrees SET state = ?, last_seen_at = ? WHERE card_id = ?')
         .run(targetState, Date.now(), cardId);
 
+    lastSeenHeadSha.delete(cardId);
     emitEvent('worktree:removed', { card_id: cardId, state: targetState, stashed_ref: stashedRef });
     return { stashedRef, hadDirtyFiles: dirty > 0 };
 }
@@ -225,6 +230,32 @@ function countDirtyFiles(worktreePath: string): number {
     const out = gitSafe(worktreePath, ['status', '--porcelain']);
     if (!out) return 0;
     return out.split('\n').filter((l) => l.trim().length > 0).length;
+}
+
+// `git diff --numstat base...HEAD` reports per-file added/deleted line counts.
+// Binary files show '-' instead of numbers and are skipped from the line totals
+// but still count toward changed_files. Includes committed work; staged-but-not-
+// committed lives in the dirty count instead.
+function diffNumstat(
+    worktreePath: string,
+    baseBranch: string,
+): { additions: number; deletions: number; changed_files: number } {
+    const out = gitSafe(worktreePath, ['diff', '--numstat', `${baseBranch}...HEAD`]);
+    if (!out) return { additions: 0, deletions: 0, changed_files: 0 };
+    let additions = 0;
+    let deletions = 0;
+    let changed_files = 0;
+    for (const line of out.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        const [a, d] = trimmed.split(/\s+/);
+        changed_files++;
+        const aN = parseInt(a, 10);
+        const dN = parseInt(d, 10);
+        if (Number.isFinite(aN)) additions += aN;
+        if (Number.isFinite(dN)) deletions += dN;
+    }
+    return { additions, deletions, changed_files };
 }
 
 export function worktreeStatus(cardId: string): WorktreeStatus | null {
@@ -240,6 +271,9 @@ export function worktreeStatus(cardId: string): WorktreeStatus | null {
             ahead: 0,
             behind: 0,
             dirty_files: 0,
+            additions: 0,
+            deletions: 0,
+            changed_files: 0,
             last_commit: null,
             exists: false,
         };
@@ -252,6 +286,7 @@ export function worktreeStatus(cardId: string): WorktreeStatus | null {
         behind = b || 0;
         ahead = a || 0;
     }
+    const numstat = diffNumstat(wt.path, wt.base_branch);
     const log = gitSafe(wt.path, ['log', '-1', '--pretty=format:%H|%s|%aI']);
     let last_commit: WorktreeStatus['last_commit'] = null;
     if (log) {
@@ -266,6 +301,9 @@ export function worktreeStatus(cardId: string): WorktreeStatus | null {
         ahead,
         behind,
         dirty_files: dirty,
+        additions: numstat.additions,
+        deletions: numstat.deletions,
+        changed_files: numstat.changed_files,
         last_commit,
         exists: true,
     };
@@ -412,10 +450,15 @@ export function renameCardBranch(cardId: string, newName: string): { ok: true } 
     const db = getDb();
     db.prepare('UPDATE worktrees SET branch = ? WHERE id = ?').run(trimmed, wt.id);
     db.prepare('UPDATE cards SET branch_name = ?, updated_at = ? WHERE id = ?').run(trimmed, Date.now(), cardId);
-    const card = db.prepare('SELECT project_id FROM cards WHERE id = ?').get(cardId) as { project_id: string } | undefined;
-    emitEvent('card:worktree_changed', { card_id: cardId, project_id: card?.project_id, branch: trimmed });
+    emitEvent('card:worktree_changed', { card_id: cardId, project_id: getCard(cardId)?.project_id, branch: trimmed });
     return { ok: true };
 }
+
+// Skip the per-reconcile `git diff --numstat` invocation when HEAD hasn't moved
+// since we last looked. Numstat is the most expensive of the three reconcile
+// git calls; the others (status --porcelain, rev-list --count) are cheap and
+// detect dirty/behind drift HEAD can't.
+const lastSeenHeadSha = new Map<string, string>();
 
 export function refreshWorktreeMetrics(cardId: string): void {
     const wt = getWorktreeByCard(cardId);
@@ -428,9 +471,32 @@ export function refreshWorktreeMetrics(cardId: string): void {
         const [b] = counts.split('\t').map((n) => parseInt(n, 10));
         behind = b || 0;
     }
-    if (dirty === wt.dirty_files && behind === wt.behind) return;
-    getDb().prepare('UPDATE worktrees SET dirty_files = ?, behind = ? WHERE id = ?')
-        .run(dirty, behind, wt.id);
+    const headSha = gitSafe(wt.path, ['rev-parse', 'HEAD']);
+    const numstat = (headSha && headSha === lastSeenHeadSha.get(cardId))
+        ? { additions: wt.additions, deletions: wt.deletions, changed_files: wt.changed_files }
+        : diffNumstat(wt.path, wt.base_branch);
+    if (headSha) lastSeenHeadSha.set(cardId, headSha);
+    if (
+        dirty === wt.dirty_files
+        && behind === wt.behind
+        && numstat.additions === wt.additions
+        && numstat.deletions === wt.deletions
+        && numstat.changed_files === wt.changed_files
+    ) return;
+    getDb().prepare(`
+        UPDATE worktrees
+           SET dirty_files = ?, behind = ?, additions = ?, deletions = ?, changed_files = ?
+         WHERE id = ?
+    `).run(dirty, behind, numstat.additions, numstat.deletions, numstat.changed_files, wt.id);
+    emitEvent('card:worktree_changed', {
+        card_id: cardId,
+        project_id: getCard(cardId)?.project_id,
+        dirty_files: dirty,
+        behind,
+        additions: numstat.additions,
+        deletions: numstat.deletions,
+        changed_files: numstat.changed_files,
+    });
 }
 
 export function setMergeConflict(cardId: string, at: number | null): void {
@@ -439,9 +505,10 @@ export function setMergeConflict(cardId: string, at: number | null): void {
 
 export function getBoardMeta(projectId: string): Record<string, WorktreeBoardMeta> {
     const rows = getDb().prepare(`
-        SELECT card_id, state, dirty_files, behind, merge_conflict_at FROM worktrees WHERE card_id IN (
-            SELECT id FROM cards WHERE project_id = ?
-        )
+        SELECT card_id, state, dirty_files, behind, merge_conflict_at,
+               additions, deletions, changed_files
+          FROM worktrees
+         WHERE card_id IN (SELECT id FROM cards WHERE project_id = ?)
     `).all(projectId) as ({ card_id: string } & WorktreeBoardMeta)[];
     const out: Record<string, WorktreeBoardMeta> = {};
     for (const r of rows) {
@@ -450,6 +517,9 @@ export function getBoardMeta(projectId: string): Record<string, WorktreeBoardMet
             dirty_files: r.dirty_files,
             behind: r.behind,
             merge_conflict_at: r.merge_conflict_at,
+            additions: r.additions,
+            deletions: r.deletions,
+            changed_files: r.changed_files,
         };
     }
     return out;

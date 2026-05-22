@@ -145,6 +145,32 @@ describe('worktree.createWorktree', () => {
         expect(matches.length).toBe(1);
     });
 
+    it('reports +N/-N/changed_files via worktreeStatus + getBoardMeta', () => {
+        const wt = mod.worktree.createWorktree({
+            cardId: card.id, slug: card.slug, repoPath: repo, baseBranch: 'main',
+        });
+        git(wt.path, ['config', 'user.email', 'agent@example.com']);
+        git(wt.path, ['config', 'user.name', 'Agent']);
+        git(wt.path, ['config', 'commit.gpgsign', 'false']);
+        // Two new files (1 + 2 additions), one modified file (1 deletion + 1 addition).
+        fs.writeFileSync(path.join(wt.path, 'a.txt'), 'one\n');
+        fs.writeFileSync(path.join(wt.path, 'b.txt'), 'two\nthree\n');
+        fs.writeFileSync(path.join(wt.path, 'README.md'), '# repo updated\n');
+        git(wt.path, ['add', '-A']);
+        git(wt.path, ['commit', '-q', '-m', 'edits']);
+        const status = mod.worktree.worktreeStatus(card.id);
+        expect(status?.changed_files).toBe(3);
+        expect(status?.additions).toBe(4); // 1 + 2 + 1
+        expect(status?.deletions).toBe(1);
+
+        // refreshWorktreeMetrics writes the same numbers to the worktrees row
+        mod.worktree.refreshWorktreeMetrics(card.id);
+        const meta = mod.worktree.getBoardMeta(project.id);
+        expect(meta[card.id].additions).toBe(4);
+        expect(meta[card.id].deletions).toBe(1);
+        expect(meta[card.id].changed_files).toBe(3);
+    });
+
     it('leaves the main repo hooks untouched', () => {
         mod.worktree.createWorktree({
             cardId: card.id, slug: card.slug, repoPath: repo, baseBranch: 'main',

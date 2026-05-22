@@ -14,11 +14,10 @@ import { InlineNewCardForm } from '@/components/new-card-button';
 import { InlineText } from '@/components/inline-edit';
 import { stageDropId, stageSortId } from '@/lib/dnd-ids';
 
-const ALL_KINDS: StageKind[] = ['backlog', 'ready', 'active', 'review', 'done', 'archive'];
-
 export type StagePatch =
     | { type: 'rename'; id: string; name: string }
-    | { type: 'kind'; id: string; kind: StageKind }
+    | { type: 'mark_review'; id: string }
+    | { type: 'unmark_review'; id: string }
     | { type: 'remove'; id: string };
 
 interface Props {
@@ -27,10 +26,11 @@ interface Props {
     projectId: string;
     worktreeMeta: Record<string, WorktreeBoardMeta>;
     streamingCardIds: Set<string>;
+    cardsAwaitingAnswer: Set<string>;
     onStagePatch: (patch: StagePatch) => Promise<void>;
 }
 
-export function Column({ stage, cards, projectId, worktreeMeta, streamingCardIds, onStagePatch }: Props) {
+export function Column({ stage, cards, projectId, worktreeMeta, streamingCardIds, cardsAwaitingAnswer, onStagePatch }: Props) {
     const sortable = useSortable({ id: stageSortId(stage.id) });
     const droppable = useDroppable({ id: stageDropId(stage.id) });
     const isBacklog = stage.kind === 'backlog';
@@ -72,7 +72,8 @@ export function Column({ stage, cards, projectId, worktreeMeta, streamingCardIds
                 <StageMenu
                     stage={stage}
                     cardCount={cards.length}
-                    onKindChange={(kind) => onStagePatch({ type: 'kind', id: stage.id, kind })}
+                    onMarkReview={() => onStagePatch({ type: 'mark_review', id: stage.id })}
+                    onUnmarkReview={() => onStagePatch({ type: 'unmark_review', id: stage.id })}
                     onRemove={() => onStagePatch({ type: 'remove', id: stage.id })}
                 />
                 <span className="text-xs tabular-nums text-[var(--muted-foreground)]">{cards.length}</span>
@@ -87,6 +88,7 @@ export function Column({ stage, cards, projectId, worktreeMeta, streamingCardIds
                             stageKind={stage.kind}
                             worktreeMeta={worktreeMeta[card.id]}
                             streaming={streamingCardIds.has(card.id)}
+                            awaitingAnswer={cardsAwaitingAnswer.has(card.id)}
                         />
                     ))}
                     {isBacklog && (
@@ -103,12 +105,14 @@ export function Column({ stage, cards, projectId, worktreeMeta, streamingCardIds
 function StageMenu({
     stage,
     cardCount,
-    onKindChange,
+    onMarkReview,
+    onUnmarkReview,
     onRemove,
 }: {
     stage: Stage;
     cardCount: number;
-    onKindChange: (k: StageKind) => void;
+    onMarkReview: () => Promise<void> | void;
+    onUnmarkReview: () => Promise<void> | void;
     onRemove: () => Promise<void> | void;
 }) {
     const [open, setOpen] = useState(false);
@@ -176,20 +180,27 @@ function StageMenu({
                         </div>
                     ) : (
                         <>
-                            <p className="px-3 pt-1 pb-1 text-[var(--muted-foreground)]">kind</p>
-                            <ul>
-                                {ALL_KINDS.map((k) => (
-                                    <li key={k}>
-                                        <button
-                                            type="button"
-                                            onClick={() => { onKindChange(k); close(); }}
-                                            className={`block w-full px-3 py-1 text-left font-mono lowercase hover:bg-[var(--muted)] ${k === stage.kind ? 'text-[var(--foreground)]' : 'text-[var(--muted-foreground)]'}`}
-                                        >
-                                            {k}
-                                        </button>
-                                    </li>
-                                ))}
-                            </ul>
+                            {stage.kind === 'backlog' || stage.kind === 'archive' ? (
+                                <p className="px-3 py-1 text-[var(--muted-foreground)]">
+                                    {stage.kind === 'backlog' ? 'backlog stage' : 'archive stage'}
+                                </p>
+                            ) : stage.kind === 'review' ? (
+                                <button
+                                    type="button"
+                                    onClick={async () => { await onUnmarkReview(); close(); }}
+                                    className="block w-full px-3 py-1 text-left hover:bg-[var(--muted)]"
+                                >
+                                    unmark as review stage
+                                </button>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={async () => { await onMarkReview(); close(); }}
+                                    className="block w-full px-3 py-1 text-left hover:bg-[var(--muted)]"
+                                >
+                                    mark as review stage
+                                </button>
+                            )}
                             <div className="my-1 border-t border-[var(--border)]" />
                             <button
                                 type="button"
@@ -207,13 +218,14 @@ function StageMenu({
 }
 
 function SortableCard({
-    projectId, card, stageKind, worktreeMeta, streaming,
+    projectId, card, stageKind, worktreeMeta, streaming, awaitingAnswer,
 }: {
     projectId: string;
     card: Card;
     stageKind: StageKind;
     worktreeMeta?: WorktreeBoardMeta;
     streaming: boolean;
+    awaitingAnswer: boolean;
 }) {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id });
     const style = {
@@ -229,6 +241,7 @@ function SortableCard({
                 stageKind={stageKind}
                 worktreeMeta={worktreeMeta}
                 streaming={streaming}
+                awaitingAnswer={awaitingAnswer}
             />
         </li>
     );

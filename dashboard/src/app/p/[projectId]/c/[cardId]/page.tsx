@@ -28,7 +28,7 @@ export default async function CardPage({ params }: { params: Promise<{ projectId
                         ← {project.name}
                     </Link>
                 </div>
-                <CardDetailHeader card={card} stages={stages} worktree={worktree} />
+                <CardDetailHeader card={card} worktree={worktree} />
                 <div className="px-6 pb-8">
                     <CardActions card={card} stages={stages} />
                 </div>

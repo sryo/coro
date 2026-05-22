@@ -1,18 +1,14 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import type { StageKind } from '@coro/types';
-
-const KINDS: StageKind[] = ['backlog', 'ready', 'active', 'review', 'done', 'archive'];
 
 interface Props {
-    onAdd: (name: string, kind: StageKind) => Promise<void> | void;
+    onAdd: (name: string) => Promise<void> | void;
 }
 
 export function AddStageSlot({ onAdd }: Props) {
     const [editing, setEditing] = useState(false);
     const [name, setName] = useState('');
-    const [kind, setKind] = useState<StageKind>('active');
     const [busy, setBusy] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -23,7 +19,6 @@ export function AddStageSlot({ onAdd }: Props) {
     function reset() {
         setEditing(false);
         setName('');
-        setKind('active');
     }
 
     async function submit() {
@@ -31,7 +26,7 @@ export function AddStageSlot({ onAdd }: Props) {
         if (!value || busy) return;
         setBusy(true);
         try {
-            await onAdd(value, kind);
+            await onAdd(value);
             reset();
         } finally {
             setBusy(false);
@@ -69,14 +64,6 @@ export function AddStageSlot({ onAdd }: Props) {
                     disabled={busy}
                     className="flex-1 bg-[var(--muted)] -mx-1 px-1 rounded-sm text-sm font-semibold tracking-tight focus:outline-none"
                 />
-                <select
-                    value={kind}
-                    onChange={(e) => setKind(e.target.value as StageKind)}
-                    disabled={busy}
-                    className="bg-transparent text-xs font-mono lowercase text-[var(--muted-foreground)] focus:outline-none"
-                >
-                    {KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
-                </select>
             </header>
             <div className="flex-1" />
         </section>

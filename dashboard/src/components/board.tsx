@@ -47,7 +47,7 @@ export function Board(props: Props) {
 function BoardInner({ project, initialStages, initialCards }: Props) {
     const projectId = project.id;
     const selection = useSelection();
-    const { cards, setCards, worktreeMeta, streamingCardIds, error, setError } = useBoardState(projectId, initialCards);
+    const { cards, setCards, worktreeMeta, streamingCardIds, cardsAwaitingAnswer, error, setError } = useBoardState(projectId, initialCards);
     const [stages, setStages] = useState<Stage[]>(initialStages);
     useEffect(() => { setStages(initialStages); }, [initialStages]);
 
@@ -235,8 +235,15 @@ function BoardInner({ project, initialStages, initialCards }: Props) {
         let next: Stage[];
         if (patch.type === 'rename') {
             next = stages.map((s) => (s.id === patch.id ? { ...s, name: patch.name } : s));
-        } else if (patch.type === 'kind') {
-            next = stages.map((s) => (s.id === patch.id ? { ...s, kind: patch.kind } : s));
+        } else if (patch.type === 'mark_review') {
+            // One canonical review checkpoint per project: demote any other review stages.
+            next = stages.map((s) => {
+                if (s.id === patch.id) return { ...s, kind: 'review' };
+                if (s.kind === 'review') return { ...s, kind: 'active' };
+                return s;
+            });
+        } else if (patch.type === 'unmark_review') {
+            next = stages.map((s) => (s.id === patch.id ? { ...s, kind: 'active' } : s));
         } else {
             next = stages.filter((s) => s.id !== patch.id);
         }
@@ -244,10 +251,10 @@ function BoardInner({ project, initialStages, initialCards }: Props) {
         await mutateStages(next.map((s) => ({ id: s.id, name: s.name, kind: s.kind })));
     }
 
-    async function addStage(name: string, kind: StageKind) {
+    async function addStage(name: string) {
         await mutateStages([
             ...stages.map((s) => ({ id: s.id, name: s.name, kind: s.kind })),
-            { name, kind },
+            { name, kind: 'active' },
         ]);
     }
 
@@ -291,6 +298,7 @@ function BoardInner({ project, initialStages, initialCards }: Props) {
                                     projectId={projectId}
                                     worktreeMeta={worktreeMeta}
                                     streamingCardIds={streamingCardIds}
+                                    cardsAwaitingAnswer={cardsAwaitingAnswer}
                                     onStagePatch={applyStagePatch}
                                 />
                             ))}
@@ -306,6 +314,7 @@ function BoardInner({ project, initialStages, initialCards }: Props) {
                                     stageKind={stages.find((s) => s.id === activeCard.stage_id)?.kind}
                                     worktreeMeta={worktreeMeta[activeCard.id]}
                                     streaming={streamingCardIds.has(activeCard.id)}
+                                    awaitingAnswer={cardsAwaitingAnswer.has(activeCard.id)}
                                     dragging
                                 />
                                 {groupDragIdsRef.current && groupDragIdsRef.current.length > 1 && (

@@ -170,4 +170,12 @@ const MIGRATIONS: ReadonlyArray<{ version: number; sql: string }> = [
             CREATE INDEX turns_status ON turns(status);
         `,
     },
+    {
+        version: 6,
+        sql: `
+            ALTER TABLE worktrees ADD COLUMN additions INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE worktrees ADD COLUMN deletions INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE worktrees ADD COLUMN changed_files INTEGER NOT NULL DEFAULT 0;
+        `,
+    },
 ];

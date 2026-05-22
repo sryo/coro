@@ -14,8 +14,27 @@ export interface BoardState {
     setCards: React.Dispatch<React.SetStateAction<Card[]>>;
     worktreeMeta: Record<string, WorktreeBoardMeta>;
     streamingCardIds: Set<string>;
+    cardsAwaitingAnswer: Set<string>;
     error: string | null;
     setError: (e: string | null) => void;
+}
+
+function addToSet<T>(set: Set<T>, item: T): Set<T> {
+    if (set.has(item)) return set;
+    const next = new Set(set);
+    next.add(item);
+    return next;
+}
+
+function removeFromSet<T>(set: Set<T>, item: T): Set<T> {
+    if (!set.has(item)) return set;
+    const next = new Set(set);
+    next.delete(item);
+    return next;
+}
+
+function numOr(value: unknown, fallback: number): number {
+    return typeof value === 'number' ? value : fallback;
 }
 
 // Owns the live board state for a project: cards, worktree metadata, and which
@@ -25,6 +44,7 @@ export function useBoardState(projectId: string, initialCards: Card[]): BoardSta
     const [cards, setCards] = useState<Card[]>(initialCards);
     const [worktreeMeta, setWorktreeMeta] = useState<Record<string, WorktreeBoardMeta>>({});
     const [streamingCardIds, setStreamingCardIds] = useState<Set<string>>(new Set());
+    const [cardsAwaitingAnswer, setCardsAwaitingAnswer] = useState<Set<string>>(new Set());
     const [error, setError] = useState<string | null>(null);
 
     // One-shot fetch for worktree_meta. The SSR payload only carries cards.
@@ -60,35 +80,67 @@ export function useBoardState(projectId: string, initialCards: Card[]): BoardSta
             }
             if (type === 'card:deleted' && cardId) {
                 setCards((prev) => prev.filter((c) => c.id !== cardId));
+                setCardsAwaitingAnswer((prev) => removeFromSet(prev, cardId));
                 return;
             }
             if (type === 'card:turn_started' && cardId) {
-                setStreamingCardIds((prev) => {
-                    if (prev.has(cardId)) return prev;
-                    const next = new Set(prev);
-                    next.add(cardId);
-                    return next;
-                });
+                setStreamingCardIds((prev) => addToSet(prev, cardId));
                 return;
             }
             if ((type === 'card:turn_complete' || type === 'card:turn_failed' || type === 'card:error') && cardId) {
-                setStreamingCardIds((prev) => {
-                    if (!prev.has(cardId)) return prev;
-                    const next = new Set(prev);
-                    next.delete(cardId);
-                    return next;
-                });
+                setStreamingCardIds((prev) => removeFromSet(prev, cardId));
                 return;
             }
             if (type === 'card:stage_changed' && cardId) {
                 const toStageId = data?.to_stage_id;
                 const position = typeof data?.position === 'number' ? data.position : undefined;
                 if (!toStageId) return;
-                setCards((prev) => prev.map((c) => (
-                    c.id === cardId
-                        ? { ...c, stage_id: toStageId, position: position ?? c.position }
-                        : c
-                )));
+                setCards((prev) => {
+                    let changed = false;
+                    const next = prev.map((c) => {
+                        if (c.id !== cardId) return c;
+                        const nextPos = position ?? c.position;
+                        if (c.stage_id === toStageId && c.position === nextPos) return c;
+                        changed = true;
+                        return { ...c, stage_id: toStageId, position: nextPos };
+                    });
+                    return changed ? next : prev;
+                });
+                setCardsAwaitingAnswer((prev) => removeFromSet(prev, cardId));
+                return;
+            }
+            if (type === 'card:note' && cardId) {
+                const kind = typeof data?.kind === 'string' ? data.kind : 'info';
+                if (kind === 'question') {
+                    setCardsAwaitingAnswer((prev) => addToSet(prev, cardId));
+                }
+                return;
+            }
+            if (type === 'card:message' && cardId) {
+                const role = (data?.message as { role?: unknown } | undefined)?.role;
+                if (role === 'user') {
+                    setCardsAwaitingAnswer((prev) => removeFromSet(prev, cardId));
+                }
+                return;
+            }
+            if (type === 'card:worktree_changed' && cardId) {
+                setWorktreeMeta((prev) => {
+                    const current = prev[cardId];
+                    if (!current) return prev;
+                    const dirty_files = numOr(data?.dirty_files, current.dirty_files);
+                    const behind = numOr(data?.behind, current.behind);
+                    const additions = numOr(data?.additions, current.additions);
+                    const deletions = numOr(data?.deletions, current.deletions);
+                    const changed_files = numOr(data?.changed_files, current.changed_files);
+                    if (
+                        dirty_files === current.dirty_files
+                        && behind === current.behind
+                        && additions === current.additions
+                        && deletions === current.deletions
+                        && changed_files === current.changed_files
+                    ) return prev;
+                    return { ...prev, [cardId]: { ...current, dirty_files, behind, additions, deletions, changed_files } };
+                });
                 return;
             }
             if (type === 'card:merged' && cardId) {
@@ -100,10 +152,12 @@ export function useBoardState(projectId: string, initialCards: Card[]): BoardSta
                 } else {
                     setCards((prev) => prev.filter((c) => c.id !== cardId));
                 }
+                setCardsAwaitingAnswer((prev) => removeFromSet(prev, cardId));
                 return;
             }
             if (type === 'card:abandoned' && cardId) {
                 setCards((prev) => prev.filter((c) => c.id !== cardId));
+                setCardsAwaitingAnswer((prev) => removeFromSet(prev, cardId));
                 return;
             }
             if (type === 'worktree:removed' && cardId) {
@@ -119,5 +173,5 @@ export function useBoardState(projectId: string, initialCards: Card[]): BoardSta
         return () => es.close();
     }, [projectId]);
 
-    return { cards, setCards, worktreeMeta, streamingCardIds, error, setError };
+    return { cards, setCards, worktreeMeta, streamingCardIds, cardsAwaitingAnswer, error, setError };
 }

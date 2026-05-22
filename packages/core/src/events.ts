@@ -1,4 +1,4 @@
-import type { EventKind, EventActor, CardEvent } from '@coro/types';
+import type { EventKind, EventActor } from '@coro/types';
 import { getDb } from './db';
 
 export type { EventKind, EventActor, CardEvent, NoteKind } from '@coro/types';
@@ -43,12 +43,6 @@ export interface CreateCardEventInput {
  * call. Replaces the old recordCardEvent + emitEvent pair that all five callers
  * had to remember to invoke together.
  */
-export function listCardEvents(cardId: string, sinceId = 0, limit = 200): CardEvent[] {
-    return getDb()
-        .prepare('SELECT * FROM events WHERE card_id = ? AND id > ? ORDER BY id ASC LIMIT ?')
-        .all(cardId, sinceId, limit) as CardEvent[];
-}
-
 export function createCardEvent(input: CreateCardEventInput): number {
     const now = input.at ?? Date.now();
     getDb().prepare(`

@@ -95,6 +95,9 @@ export interface WorktreeRecord {
     dirty_files: number;
     behind: number;
     merge_conflict_at: number | null;
+    additions: number;
+    deletions: number;
+    changed_files: number;
 }
 
 export interface WorktreeStatus {
@@ -105,6 +108,9 @@ export interface WorktreeStatus {
     ahead: number;
     behind: number;
     dirty_files: number;
+    additions: number;
+    deletions: number;
+    changed_files: number;
     last_commit: { sha: string; subject: string; iso: string } | null;
     exists: boolean;
 }
@@ -114,6 +120,9 @@ export interface WorktreeBoardMeta {
     dirty_files: number;
     behind: number;
     merge_conflict_at: number | null;
+    additions: number;
+    deletions: number;
+    changed_files: number;
 }
 
 export interface ErrorResponse {

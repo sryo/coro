@@ -3,20 +3,18 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
-import type { Card, Stage, WorktreeStatus } from '@coro/types';
+import type { Card, WorktreeStatus } from '@coro/types';
 import { TimeAgo } from '@/components/time-ago';
 import { InlineText } from '@/components/inline-edit';
 
 interface Props {
     card: Card;
-    stages: Stage[];
     worktree: WorktreeStatus | null;
 }
 
-export function CardDetailHeader({ card: initialCard, stages, worktree: initialWorktree }: Props) {
+export function CardDetailHeader({ card: initialCard, worktree: initialWorktree }: Props) {
     const [card, setCard] = useState<Card>(initialCard);
     const [worktree, setWorktree] = useState<WorktreeStatus | null>(initialWorktree);
-    void stages;
 
     async function renameTitle(title: string) {
         const updated = await api.patch<Card>(`/cards/${card.id}`, { title });
