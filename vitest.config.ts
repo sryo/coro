@@ -8,6 +8,7 @@ export default defineConfig({
             'packages/core',
             'packages/client',
             'packages/daemon',
+            'dashboard',
         ],
     },
 });

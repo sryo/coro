@@ -10,14 +10,10 @@
 
 import { NextRequest } from 'next/server';
 import { getServerClient } from '@/lib/server-api';
+import { buildSubpath } from '../build-subpath';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-function buildSubpath(parts: string[]): string | null {
-    if (parts.some((p) => p === '..' || p.startsWith('/') || p.includes('://'))) return null;
-    return '/' + parts.join('/');
-}
 
 async function forward(req: NextRequest, params: { path: string[] }): Promise<Response> {
     const client = getServerClient();
