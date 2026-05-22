@@ -1,13 +1,13 @@
 import fs from 'fs';
 import path from 'path';
 import Database from 'better-sqlite3';
-import { CONCERTO_HOME, DB_FILE } from './config';
+import { CORO_HOME, DB_FILE } from './config';
 
 let db: Database.Database | null = null;
 
 export function getDb(): Database.Database {
     if (db) return db;
-    fs.mkdirSync(CONCERTO_HOME, { recursive: true });
+    fs.mkdirSync(CORO_HOME, { recursive: true });
     db = new Database(DB_FILE);
     db.pragma('journal_mode = WAL');
     db.pragma('busy_timeout = 5000');

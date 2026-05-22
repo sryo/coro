@@ -31,7 +31,7 @@ export function isPidAlive(pid: number): boolean {
 }
 
 /**
- * Read ~/.concerto/daemon.json and validate the PID is alive. Returns null if
+ * Read ~/.coro/daemon.json and validate the PID is alive. Returns null if
  * the file is missing, malformed, or points to a dead process.
  */
 export function discover(): DaemonInfo | null {

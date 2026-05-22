@@ -125,7 +125,7 @@ export function sendMessage(cardId: string, content: string, opts: { clientMessa
     if (!card.worktree_path) {
         throw Object.assign(new Error('card has no worktree; transition to an active stage first'), {
             code: 'card_not_active',
-            hint: 'POST /cards/:id/transitions with to_stage_id of an "active" kind stage (or run /concerto-start)',
+            hint: 'POST /cards/:id/transitions with to_stage_id of an "active" kind stage (or run /coro-start)',
         });
     }
     const project = getProject(card.project_id);

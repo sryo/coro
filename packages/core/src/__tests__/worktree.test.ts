@@ -4,8 +4,8 @@ import os from 'os';
 import path from 'path';
 import { execFileSync } from 'child_process';
 
-const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'concerto-wt-'));
-process.env.CONCERTO_HOME = tmpRoot;
+const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'coro-wt-'));
+process.env.CORO_HOME = tmpRoot;
 
 type Mod = {
     closeDb: typeof import('../db').closeDb;
@@ -32,7 +32,7 @@ function git(cwd: string, args: string[]): string {
 }
 
 function makeTmpRepo(): string {
-    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'concerto-wt-repo-'));
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'coro-wt-repo-'));
     git(repo, ['init', '-q', '-b', 'main']);
     git(repo, ['config', 'user.email', 'test@example.com']);
     git(repo, ['config', 'user.name', 'Test']);
@@ -78,7 +78,7 @@ describe('worktree.createWorktree', () => {
         });
         expect(fs.existsSync(wt.path)).toBe(true);
         expect(fs.existsSync(path.join(wt.path, 'README.md'))).toBe(true);
-        expect(wt.branch).toMatch(/^concerto\//);
+        expect(wt.branch).toMatch(/^coro\//);
         const row = mod.worktree.getWorktreeByCard(card.id);
         expect(row).toBeTruthy();
         expect(row!.path).toBe(wt.path);

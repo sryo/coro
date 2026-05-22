@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Resolves the current repo to a concerto project. Auto-binds if --auto-bind passed.
+// Resolves the current repo to a coro project. Auto-binds if --auto-bind passed.
 // Prints {project_id, project_name, repo_path} on success.
 //
 // Without --auto-bind, exits with code 3 and prints {reason: "unbound", repo_path, name}
@@ -16,7 +16,7 @@ const clientEntry = path.resolve(here, '..', '..', 'client', 'dist', 'index.js')
 const { DaemonClient } = await import(clientEntry);
 
 function logError(payload) {
-    process.stderr.write('[concerto] ' + JSON.stringify(payload) + '\n');
+    process.stderr.write('[coro] ' + JSON.stringify(payload) + '\n');
 }
 
 function repoRoot() {

@@ -45,7 +45,7 @@ export function CardRow({ projectId, card, worktreeMeta, streaming, dragging }: 
             <div className="mt-2 flex items-baseline gap-3 text-xs text-[var(--muted-foreground)]">
                 <span className="font-mono">{card.id.slice(0, 6)}</span>
                 {card.branch_name && (
-                    <span className="font-mono truncate">{card.branch_name.replace(/^concerto\//, '')}</span>
+                    <span className="font-mono truncate">{card.branch_name.replace(/^coro\//, '')}</span>
                 )}
             </div>
             <CardTimestamp card={card} />

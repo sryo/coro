@@ -1,5 +1,5 @@
 #!/bin/sh
-# Symlink concerto skills into ~/.claude/skills/
+# Symlink coro skills into ~/.claude/skills/
 # Idempotent — safe to re-run.
 
 set -e
@@ -20,10 +20,10 @@ link() {
     echo "  linked $name → $src"
 }
 
-echo "installing concerto skills into $SKILLS_DIR"
+echo "installing coro skills into $SKILLS_DIR"
 
 # Root skill (holds shared.md + schema.md)
-link "$SCRIPT_DIR" "concerto"
+link "$SCRIPT_DIR" "coro"
 
 # Verb sub-skills
 for verb in "$SCRIPT_DIR"/verbs/*/; do
@@ -34,4 +34,4 @@ done
 
 echo "done"
 echo
-echo "next: in any git repo, run /concerto-daemon status"
+echo "next: in any git repo, run /coro-daemon status"

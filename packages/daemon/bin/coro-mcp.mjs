@@ -1,24 +1,24 @@
 #!/usr/bin/env node
-// MCP server (stdio JSON-RPC) for a single concerto card.
+// MCP server (stdio JSON-RPC) for a single coro card.
 //
 // Spawned by `claude` via the worktree's .mcp.json. Each tool call is proxied to
 // the daemon over HTTP. Auth + card identity come from env vars baked into the
 // .mcp.json at worktree-creation time:
-//   CONCERTO_CARD_ID    — card this MCP server is bound to
-//   CONCERTO_DAEMON_URL — e.g. http://localhost:7419
-//   CONCERTO_DAEMON_TOKEN
+//   CORO_CARD_ID    — card this MCP server is bound to
+//   CORO_DAEMON_URL — e.g. http://localhost:7419
+//   CORO_DAEMON_TOKEN
 //
 // MCP protocol: JSON-RPC 2.0 over stdio, newline-delimited. We implement just
 // enough — `initialize`, `tools/list`, `tools/call`. Notifications are ignored.
 
 import readline from 'node:readline';
 
-const CARD_ID = process.env.CONCERTO_CARD_ID;
-const DAEMON_URL = process.env.CONCERTO_DAEMON_URL;
-const TOKEN = process.env.CONCERTO_DAEMON_TOKEN;
+const CARD_ID = process.env.CORO_CARD_ID;
+const DAEMON_URL = process.env.CORO_DAEMON_URL;
+const TOKEN = process.env.CORO_DAEMON_TOKEN;
 
 if (!CARD_ID || !DAEMON_URL || !TOKEN) {
-    process.stderr.write('concerto-mcp: missing CONCERTO_CARD_ID / CONCERTO_DAEMON_URL / CONCERTO_DAEMON_TOKEN\n');
+    process.stderr.write('coro-mcp: missing CORO_CARD_ID / CORO_DAEMON_URL / CORO_DAEMON_TOKEN\n');
     process.exit(2);
 }
 
@@ -49,18 +49,18 @@ async function api(method, path, body) {
 
 const TOOLS = [
     {
-        name: 'concerto.get_card',
+        name: 'coro.get_card',
         description: 'Get this card\'s metadata: title, description, current stage, branch, worktree, timestamps. Call at the start of a conversation to refresh your view.',
         inputSchema: { type: 'object', properties: {} },
     },
     {
-        name: 'concerto.list_stages',
-        description: 'List all stages in this card\'s project in order, with their kinds (backlog/ready/active/review/done/archive). Use to find a valid target before calling concerto.set_status.',
+        name: 'coro.list_stages',
+        description: 'List all stages in this card\'s project in order, with their kinds (backlog/ready/active/review/done/archive). Use to find a valid target before calling coro.set_status.',
         inputSchema: { type: 'object', properties: {} },
     },
     {
-        name: 'concerto.set_status',
-        description: 'Move this card to a different stage. Use \'Testing\' when ready for the user to verify; use \'Review\' when confident the work is done. Cannot move to \'Done\' or \'Merged\' — those require human approval. Pass `to_stage` as the stage name from concerto.list_stages.',
+        name: 'coro.set_status',
+        description: 'Move this card to a different stage. Use \'Testing\' when ready for the user to verify; use \'Review\' when confident the work is done. Cannot move to \'Done\' or \'Merged\' — those require human approval. Pass `to_stage` as the stage name from coro.list_stages.',
         inputSchema: {
             type: 'object',
             required: ['to_stage'],
@@ -71,7 +71,7 @@ const TOOLS = [
         },
     },
     {
-        name: 'concerto.add_note',
+        name: 'coro.add_note',
         description: 'Append a note to this card\'s activity log. The user sees these in the dashboard. Use for status updates, decisions, or anything they should know at a glance.',
         inputSchema: {
             type: 'object',
@@ -82,7 +82,7 @@ const TOOLS = [
         },
     },
     {
-        name: 'concerto.request_review',
+        name: 'coro.request_review',
         description: 'Mark this card as ready for human review. Equivalent to set_status({to_stage: \'Review\'}) and pings the user via the dashboard. Call this when you believe the work is done and want a human to approve and merge.',
         inputSchema: {
             type: 'object',
@@ -110,16 +110,16 @@ async function findStageIdByName(projectId, name) {
 
 async function callTool(name, args) {
     switch (name) {
-        case 'concerto.get_card': {
+        case 'coro.get_card': {
             const card = await api('GET', `/cards/${CARD_ID}`);
             return textContent(JSON.stringify(card, null, 2));
         }
-        case 'concerto.list_stages': {
+        case 'coro.list_stages': {
             const card = await api('GET', `/cards/${CARD_ID}`);
             const stages = await api('GET', `/projects/${card.project_id}/stages`);
             return textContent(JSON.stringify(stages.map(s => ({ name: s.name, kind: s.kind, position: s.position })), null, 2));
         }
-        case 'concerto.set_status': {
+        case 'coro.set_status': {
             const target = String(args?.to_stage || '').trim();
             if (!target) return errorContent('to_stage is required');
             const card = await api('GET', `/cards/${CARD_ID}`);
@@ -143,13 +143,13 @@ async function callTool(name, args) {
                 return errorContent(err.message);
             }
         }
-        case 'concerto.add_note': {
+        case 'coro.add_note': {
             const content = String(args?.content || '').trim();
             if (!content) return errorContent('content is required');
             await api('POST', `/cards/${CARD_ID}/notes`, { content });
             return textContent('note added');
         }
-        case 'concerto.request_review': {
+        case 'coro.request_review': {
             const card = await api('GET', `/cards/${CARD_ID}`);
             const { stageId, stages } = await findStageIdByName(card.project_id, 'Review');
             const reviewStage = stageId
@@ -184,7 +184,7 @@ async function handle(msg) {
             jsonrpc: '2.0', id: msg.id,
             result: {
                 protocolVersion: msg.params?.protocolVersion || '2024-11-05',
-                serverInfo: { name: 'concerto', version: '0.0.0' },
+                serverInfo: { name: 'coro', version: '0.0.0' },
                 capabilities: { tools: {} },
             },
         });
@@ -231,11 +231,11 @@ rl.on('line', (line) => {
     if (!line.trim()) return;
     let msg;
     try { msg = JSON.parse(line); } catch {
-        process.stderr.write(`concerto-mcp: bad json: ${line}\n`);
+        process.stderr.write(`coro-mcp: bad json: ${line}\n`);
         return;
     }
     const p = handle(msg).catch((err) => {
-        process.stderr.write(`concerto-mcp: handler error: ${err.message}\n`);
+        process.stderr.write(`coro-mcp: handler error: ${err.message}\n`);
     }).finally(() => {
         inFlight.delete(p);
         maybeExit();

@@ -6,11 +6,11 @@ import net from 'node:net';
 import { execFileSync } from 'node:child_process';
 import type { Server } from 'node:http';
 
-// Each test file gets a fresh CONCERTO_HOME so its sqlite db, daemon.json, and
-// log file live in a private tmpdir. CONCERTO_HOME must be set before any core
+// Each test file gets a fresh CORO_HOME so its sqlite db, daemon.json, and
+// log file live in a private tmpdir. CORO_HOME must be set before any core
 // module loads, because config.ts captures it once at import time.
-const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'concerto-e2e-'));
-process.env.CONCERTO_HOME = tmpHome;
+const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'coro-e2e-'));
+process.env.CORO_HOME = tmpHome;
 
 type ServerMod = {
     startServer: typeof import('../server').startServer;
@@ -26,7 +26,7 @@ function git(cwd: string, args: string[]): string {
 }
 
 function makeTmpRepo(): string {
-    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'concerto-e2e-repo-'));
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'coro-e2e-repo-'));
     git(repo, ['init', '-q', '-b', 'main']);
     git(repo, ['config', 'user.email', 'e2e@example.com']);
     git(repo, ['config', 'user.name', 'E2E']);
@@ -143,7 +143,7 @@ describe('daemon end-to-end', () => {
         expect(inProg.stage_id).toBe(inProgress!.id);
         expect(inProg.worktree_path).toBeTruthy();
         expect(fs.existsSync(inProg.worktree_path!)).toBe(true);
-        expect(inProg.branch_name).toMatch(/^concerto\//);
+        expect(inProg.branch_name).toMatch(/^coro\//);
 
         // Add a commit in the worktree so the merge has work to land and produces
         // a real squash commit (not a no-op already_merged result).

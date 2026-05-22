@@ -1,6 +1,6 @@
 // Server-side proxy from the dashboard to the daemon. The browser talks to
 // /api/proxy/...; this route forwards to http://localhost:<daemon-port>/...
-// with the bearer token from ~/.concerto/daemon.json. The token never reaches
+// with the bearer token from ~/.coro/daemon.json. The token never reaches
 // the browser.
 //
 // Non-SSE: delegates to DaemonClient.request via getServerClient(). SSE: pipes
@@ -24,8 +24,8 @@ async function forward(req: NextRequest, params: { path: string[] }): Promise<Re
         return Response.json({
             error: {
                 code: 'daemon_unavailable',
-                message: 'concerto daemon is not running',
-                hint: 'run `concerto daemon start` from a terminal',
+                message: 'coro daemon is not running',
+                hint: 'run `coro daemon start` from a terminal',
             },
         }, { status: 503 });
     }

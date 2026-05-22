@@ -54,7 +54,7 @@ export function ProjectMetaEditor({ project: initial }: Props) {
                     rows={5}
                     value={brief}
                     onChange={(e) => { setBrief(e.target.value); setSaved(false); }}
-                    placeholder="e.g. Concerto is a kanban board for Claude Code conversations. TypeScript, Node ≥ 22, Hono daemon, Next.js dashboard..."
+                    placeholder="e.g. Coro is a kanban board for Claude Code conversations. TypeScript, Node ≥ 22, Hono daemon, Next.js dashboard..."
                 />
                 <p className="mt-1 text-xs text-[var(--muted-foreground)]">{brief.length} chars</p>
             </div>

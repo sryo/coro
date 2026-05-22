@@ -1,5 +1,5 @@
 // Small structured logger used by the daemon and core modules. JSON-lines to
-// stderr when CONCERTO_LOG_FORMAT=json (machine-friendly for log aggregation);
+// stderr when CORO_LOG_FORMAT=json (machine-friendly for log aggregation);
 // otherwise a short "HH:MM:SS LEVEL [scope] message" line. Level defaults to
 // info; debug noise stays off unless explicitly opted in.
 
@@ -10,12 +10,12 @@ type Level = 'debug' | 'info' | 'warn' | 'error';
 const LEVEL_RANK: Record<Level, number> = { debug: 10, info: 20, warn: 30, error: 40 };
 
 function envLevel(): Level {
-    const raw = (process.env.CONCERTO_LOG_LEVEL || 'info').toLowerCase();
+    const raw = (process.env.CORO_LOG_LEVEL || 'info').toLowerCase();
     return (raw in LEVEL_RANK ? raw : 'info') as Level;
 }
 
 function isJson(): boolean {
-    return process.env.CONCERTO_LOG_FORMAT === 'json';
+    return process.env.CORO_LOG_FORMAT === 'json';
 }
 
 // Optional sink for tests or the daemon's file rotation. When unset we just

@@ -4,22 +4,22 @@ import path from 'node:path';
 import os from 'node:os';
 
 function tempHome(): string {
-    return fs.mkdtempSync(path.join(os.tmpdir(), 'concerto-client-test-'));
+    return fs.mkdtempSync(path.join(os.tmpdir(), 'coro-client-test-'));
 }
 
 describe('DaemonClient.discover', () => {
     let home: string;
-    const originalHome = process.env.CONCERTO_HOME;
+    const originalHome = process.env.CORO_HOME;
 
     beforeEach(() => {
         home = tempHome();
-        process.env.CONCERTO_HOME = home;
+        process.env.CORO_HOME = home;
         vi.resetModules();
     });
 
     afterEach(() => {
-        if (originalHome === undefined) delete process.env.CONCERTO_HOME;
-        else process.env.CONCERTO_HOME = originalHome;
+        if (originalHome === undefined) delete process.env.CORO_HOME;
+        else process.env.CORO_HOME = originalHome;
         try { fs.rmSync(home, { recursive: true, force: true }); } catch {}
     });
 

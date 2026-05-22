@@ -4,12 +4,12 @@ import type { StageKind } from '@coro/types';
 
 export type { StageKind } from '@coro/types';
 
-export const CONCERTO_HOME = process.env.CONCERTO_HOME
-    || path.join(os.homedir(), '.concerto');
+export const CORO_HOME = process.env.CORO_HOME
+    || path.join(os.homedir(), '.coro');
 
-export const DB_FILE = path.join(CONCERTO_HOME, 'state.db');
-export const DAEMON_INFO_FILE = path.join(CONCERTO_HOME, 'daemon.json');
-export const LOG_FILE = path.join(CONCERTO_HOME, 'daemon.log');
+export const DB_FILE = path.join(CORO_HOME, 'state.db');
+export const DAEMON_INFO_FILE = path.join(CORO_HOME, 'daemon.json');
+export const LOG_FILE = path.join(CORO_HOME, 'daemon.log');
 
 export const DEFAULT_API_PORT = 7419;
 export const DEFAULT_DASHBOARD_PORT = 7420;
@@ -32,16 +32,16 @@ function intFromEnv(name: string, fallback: number): number {
 }
 
 // How often the daemon checks worktrees on disk for drift (missing / dirty / behind).
-export const RECONCILE_INTERVAL_MS = intFromEnv('CONCERTO_RECONCILE_INTERVAL_MS', 30_000);
+export const RECONCILE_INTERVAL_MS = intFromEnv('CORO_RECONCILE_INTERVAL_MS', 30_000);
 
-// How often the daemon sweeps refs/concerto-abandoned/* for stashes past the max age.
-export const STASH_GC_INTERVAL_MS = intFromEnv('CONCERTO_STASH_GC_INTERVAL_MS', 24 * 60 * 60 * 1000);
+// How often the daemon sweeps refs/coro-abandoned/* for stashes past the max age.
+export const STASH_GC_INTERVAL_MS = intFromEnv('CORO_STASH_GC_INTERVAL_MS', 24 * 60 * 60 * 1000);
 
 // Stashed abandoned worktrees older than this are pruned by the GC sweep.
-export const STASH_MAX_AGE_MS = intFromEnv('CONCERTO_STASH_MAX_AGE_MS', 30 * 24 * 60 * 60 * 1000);
+export const STASH_MAX_AGE_MS = intFromEnv('CORO_STASH_MAX_AGE_MS', 30 * 24 * 60 * 60 * 1000);
 
 // "Rebase" badge appears when the worktree is at least this many commits behind base.
-export const STALE_BEHIND_THRESHOLD = intFromEnv('CONCERTO_STALE_BEHIND_THRESHOLD', 10);
+export const STALE_BEHIND_THRESHOLD = intFromEnv('CORO_STALE_BEHIND_THRESHOLD', 10);
 
 // Cap on a single diff response — anything over this gets truncated to keep responses bounded.
-export const DIFF_BYTE_CAP = intFromEnv('CONCERTO_DIFF_BYTE_CAP', 1_000_000);
+export const DIFF_BYTE_CAP = intFromEnv('CORO_DIFF_BYTE_CAP', 1_000_000);

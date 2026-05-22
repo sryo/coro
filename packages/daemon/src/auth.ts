@@ -1,6 +1,6 @@
 import fs from 'fs';
 import { nanoid } from 'nanoid';
-import { DAEMON_INFO_FILE, CONCERTO_HOME } from '@coro/core';
+import { DAEMON_INFO_FILE, CORO_HOME } from '@coro/core';
 import path from 'path';
 
 export interface DaemonInfo {

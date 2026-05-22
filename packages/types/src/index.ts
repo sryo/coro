@@ -1,4 +1,4 @@
-// Shared types for the concerto workspace. Zero runtime dependencies — this
+// Shared types for the coro workspace. Zero runtime dependencies — this
 // package compiles to declarations + an empty JS module so dashboards and
 // scripts can import canonical shapes without pulling in better-sqlite3 etc.
 

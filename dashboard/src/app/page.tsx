@@ -9,9 +9,9 @@ export default async function HomePage() {
     if (!projects) {
         return (
             <main className="mx-auto max-w-2xl px-8 py-24">
-                <h1 className="text-4xl font-bold tracking-tight">Concerto</h1>
+                <h1 className="text-4xl font-bold tracking-tight">Coro</h1>
                 <p className="mt-6 text-[var(--muted-foreground)]">
-                    Daemon isn’t running. Start it with <code className="font-mono text-[var(--foreground)]">concerto daemon start</code>.
+                    Daemon isn’t running. Start it with <code className="font-mono text-[var(--foreground)]">coro daemon start</code>.
                 </p>
             </main>
         );
@@ -21,10 +21,10 @@ export default async function HomePage() {
 
     return (
         <main className="mx-auto max-w-2xl px-8 py-24">
-            <h1 className="text-4xl font-bold tracking-tight">Concerto</h1>
+            <h1 className="text-4xl font-bold tracking-tight">Coro</h1>
             {projects.length === 0 ? (
                 <p className="mt-6 text-[var(--muted-foreground)]">
-                    No projects yet. Run <code className="font-mono text-[var(--foreground)]">/concerto new &quot;&lt;title&gt;&quot;</code> in a git repo to bind it.
+                    No projects yet. Run <code className="font-mono text-[var(--foreground)]">/coro new &quot;&lt;title&gt;&quot;</code> in a git repo to bind it.
                 </p>
             ) : (
                 <ul className="mt-12 space-y-1">

@@ -4,12 +4,12 @@ import os from 'os';
 import path from 'path';
 import { execFileSync } from 'child_process';
 
-// Each test file needs its own CONCERTO_HOME so getDb() reads/writes a fresh
+// Each test file needs its own CORO_HOME so getDb() reads/writes a fresh
 // state.db without colliding with the user's real db or other suites.
-const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'concerto-ctrl-'));
-process.env.CONCERTO_HOME = tmpRoot;
+const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'coro-ctrl-'));
+process.env.CORO_HOME = tmpRoot;
 
-// Modules are loaded dynamically (after CONCERTO_HOME is set) since config.ts
+// Modules are loaded dynamically (after CORO_HOME is set) since config.ts
 // resolves the home path once at import time.
 type Mod = {
     closeDb: typeof import('../db').closeDb;
@@ -38,7 +38,7 @@ function git(cwd: string, args: string[]): string {
 }
 
 function makeTmpRepo(): string {
-    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'concerto-repo-'));
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'coro-repo-'));
     git(repo, ['init', '-q', '-b', 'main']);
     git(repo, ['config', 'user.email', 'test@example.com']);
     git(repo, ['config', 'user.name', 'Test']);

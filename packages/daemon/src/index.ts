@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import {
-    CONCERTO_HOME,
+    CORO_HOME,
     DEFAULT_API_PORT,
     LOG_FILE,
     RECONCILE_INTERVAL_MS,
@@ -16,7 +16,7 @@ import { DaemonClient } from '@coro/client';
 import { startServer } from './server';
 import { generateToken, writeDaemonInfo, clearDaemonInfo } from './auth';
 
-const PID_FILE = path.join(CONCERTO_HOME, 'daemon.pid');
+const PID_FILE = path.join(CORO_HOME, 'daemon.pid');
 const LOG_ROTATE_BYTES = 10 * 1024 * 1024; // 10MB cap; rotates to .1/.2/.3
 const LOG_ROTATE_KEEP = 3;
 
@@ -75,7 +75,7 @@ function openRotatingLogFile(): LogFileSink {
 }
 
 async function main() {
-    fs.mkdirSync(CONCERTO_HOME, { recursive: true });
+    fs.mkdirSync(CORO_HOME, { recursive: true });
 
     const logSink = openRotatingLogFile();
     setLogSink(logSink.stream);
@@ -87,14 +87,14 @@ async function main() {
 
     getDb();
 
-    const port = parseInt(process.env.CONCERTO_API_PORT || String(DEFAULT_API_PORT), 10);
+    const port = parseInt(process.env.CORO_API_PORT || String(DEFAULT_API_PORT), 10);
     const token = generateToken();
     const startedAt = Date.now();
 
     // The MCP bridge path is set on the env so DaemonClient.writeMcpConfig
     // (called from the worktree-created hook) can find it without us shipping
     // the path through core.
-    process.env.CONCERTO_MCP_BRIDGE = mcpBridgeScript();
+    process.env.CORO_MCP_BRIDGE = mcpBridgeScript();
 
     const client = new DaemonClient({ base: `http://localhost:${port}`, token });
     worktrees.onWorktreeCreated(({ worktreePath, cardId }) => {

@@ -1,10 +1,10 @@
 import fs from 'fs';
 import path from 'path';
 import { spawn } from 'child_process';
-import { CONCERTO_HOME, DAEMON_INFO_FILE, LOG_FILE } from '@coro/core';
+import { CORO_HOME, DAEMON_INFO_FILE, LOG_FILE } from '@coro/core';
 import { readDaemonInfo } from './auth';
 
-const PID_FILE = path.join(CONCERTO_HOME, 'daemon.pid');
+const PID_FILE = path.join(CORO_HOME, 'daemon.pid');
 const GREEN = '\x1b[32m';
 const YELLOW = '\x1b[33m';
 const RED = '\x1b[31m';
@@ -48,15 +48,15 @@ async function waitForHealth(port: number, token: string, maxWait = 5000): Promi
 
 async function start(): Promise<void> {
     if (isRunning()) {
-        line(YELLOW, 'concerto daemon already running');
+        line(YELLOW, 'coro daemon already running');
         return;
     }
-    fs.mkdirSync(CONCERTO_HOME, { recursive: true });
+    fs.mkdirSync(CORO_HOME, { recursive: true });
     const out = fs.openSync(LOG_FILE, 'a');
     const child = spawn('node', [daemonScript()], {
         detached: true,
         stdio: ['ignore', out, out],
-        env: { ...process.env, CONCERTO_HOME },
+        env: { ...process.env, CORO_HOME },
     });
     child.unref();
 
@@ -82,7 +82,7 @@ async function start(): Promise<void> {
         process.exit(1);
     }
 
-    line(GREEN, `concerto daemon started`);
+    line(GREEN, `coro daemon started`);
     line(NC, `  pid    ${info.pid}`);
     line(NC, `  port   ${info.port}`);
     line(DIM, `  logs   ${LOG_FILE}`);
@@ -91,12 +91,12 @@ async function start(): Promise<void> {
 function stop(): void {
     const pid = isRunning();
     if (!pid) {
-        line(YELLOW, 'concerto daemon not running');
+        line(YELLOW, 'coro daemon not running');
         return;
     }
     try {
         process.kill(pid, 'SIGTERM');
-        line(GREEN, `concerto daemon stopped (pid ${pid})`);
+        line(GREEN, `coro daemon stopped (pid ${pid})`);
     } catch {
         line(YELLOW, 'process already exited');
     }
@@ -106,7 +106,7 @@ function stop(): void {
 async function status(): Promise<void> {
     const pid = isRunning();
     if (!pid) {
-        line(YELLOW, 'concerto daemon not running');
+        line(YELLOW, 'coro daemon not running');
         return;
     }
     const info = readDaemonInfo();
@@ -120,7 +120,7 @@ async function status(): Promise<void> {
         });
         const data = (await res.json()) as { uptime_ms?: number };
         const uptime = data.uptime_ms ? Math.floor(data.uptime_ms / 1000) : 0;
-        line(GREEN, `concerto daemon running`);
+        line(GREEN, `coro daemon running`);
         line(NC, `  pid    ${pid}`);
         line(NC, `  port   ${info.port}`);
         line(NC, `  uptime ${uptime}s`);
@@ -139,7 +139,7 @@ function logs(): void {
 }
 
 function printUsage(): void {
-    line(NC, 'usage: concerto daemon <start|stop|status|logs>');
+    line(NC, 'usage: coro daemon <start|stop|status|logs>');
 }
 
 async function main() {

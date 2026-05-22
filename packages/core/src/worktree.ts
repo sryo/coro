@@ -50,10 +50,10 @@ function truncateSlug(slug: string, max = 30): string {
 
 function buildBranchName(repoPath: string, slug: string, cardId: string): string {
     const short = cardId.slice(-6);
-    let candidate = `concerto/${truncateSlug(slug)}-${short}`;
+    let candidate = `coro/${truncateSlug(slug)}-${short}`;
     let n = 2;
     while (gitSafe(repoPath, ['show-ref', '--verify', '--quiet', `refs/heads/${candidate}`]) !== null) {
-        candidate = `concerto/${truncateSlug(slug)}-${short}-${n}`;
+        candidate = `coro/${truncateSlug(slug)}-${short}-${n}`;
         n++;
         if (n > 99) throw new Error('could not allocate unique branch name');
     }
@@ -78,7 +78,7 @@ export function createWorktree(input: CreateWorktreeInput): WorktreeRecord {
 
     const baseSha = git(input.repoPath, ['rev-parse', input.baseBranch]);
     const commonDir = gitCommonDir(input.repoPath);
-    const worktreePath = path.join(commonDir, 'concerto-worktrees', input.cardId);
+    const worktreePath = path.join(commonDir, 'coro-worktrees', input.cardId);
     const branch = buildBranchName(input.repoPath, input.slug, input.cardId);
 
     fs.mkdirSync(path.dirname(worktreePath), { recursive: true });
@@ -140,7 +140,7 @@ export function removeWorktree(cardId: string, opts: RemoveWorktreeOpts = {}): {
             throw Object.assign(new Error('worktree has uncommitted changes'), {
                 code: 'dirty_worktree',
                 dirty_files: dirty,
-                hint: 'pass stashDirty=true to stash work to refs/concerto-abandoned/<cardId>',
+                hint: 'pass stashDirty=true to stash work to refs/coro-abandoned/<cardId>',
             });
         }
         if (opts.stashDirty) {
@@ -148,7 +148,7 @@ export function removeWorktree(cardId: string, opts: RemoveWorktreeOpts = {}): {
                 git(wt.path, ['add', '-A']);
                 const stashSha = gitSafe(wt.path, ['stash', 'create']);
                 if (stashSha) {
-                    const ref = `refs/concerto-abandoned/${cardId}`;
+                    const ref = `refs/coro-abandoned/${cardId}`;
                     git(wt.repo_path, ['update-ref', ref, stashSha]);
                     stashedRef = ref;
                 }
@@ -330,7 +330,7 @@ export function pruneAbandonedStashes(maxAgeMs: number): { deleted: { repo: stri
         const listing = gitWithOutput(repo_path, [
             'for-each-ref',
             '--format=%(refname) %(committerdate:unix)',
-            'refs/concerto-abandoned/',
+            'refs/coro-abandoned/',
         ]);
         if (listing.status !== 0) continue;
         for (const line of listing.stdout.split('\n')) {

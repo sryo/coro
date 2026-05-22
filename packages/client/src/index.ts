@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execSync } from 'node:child_process';
 import {
-    CONCERTO_HOME,
+    CORO_HOME,
     DAEMON_LOCK_FILE,
     DAEMON_LOG_FILE,
     SPAWN_POLL_MS,
@@ -71,7 +71,7 @@ function sleep(ms: number): Promise<void> {
     return new Promise((r) => setTimeout(r, ms));
 }
 
-function findConcertoBin(): string | null {
+function findCoroBin(): string | null {
     try {
         const which = execSync('command -v coro', { encoding: 'utf8' }).trim();
         if (which && fs.existsSync(which)) return which;
@@ -106,11 +106,11 @@ export function _setSpawnerForTests(fn: (() => Promise<void>) | null): void {
 }
 
 async function defaultSpawn(): Promise<void> {
-    const bin = findConcertoBin();
+    const bin = findCoroBin();
     if (!bin) {
-        throw new Error('concerto binary not found — install with `npm i -g concerto` or run install.sh from the source tree');
+        throw new Error('coro binary not found — install with `npm i -g coro` or run install.sh from the source tree');
     }
-    fs.mkdirSync(CONCERTO_HOME, { recursive: true });
+    fs.mkdirSync(CORO_HOME, { recursive: true });
     const out = fs.openSync(DAEMON_LOG_FILE, 'a');
     const child = spawn(bin, ['daemon', 'start'], { detached: true, stdio: ['ignore', out, out] });
     child.unref();
@@ -139,7 +139,7 @@ export class DaemonClient {
         this.token = opts.token ?? null;
     }
 
-    /** Read ~/.concerto/daemon.json. Null if missing or PID is dead. */
+    /** Read ~/.coro/daemon.json. Null if missing or PID is dead. */
     discover(): DaemonInfo | null {
         return discover();
     }
@@ -156,10 +156,10 @@ export class DaemonClient {
         if (existing) return this.cacheAndReturn(existing);
 
         if (!allowSpawn) {
-            throw new Error('concerto daemon is not running');
+            throw new Error('coro daemon is not running');
         }
 
-        fs.mkdirSync(CONCERTO_HOME, { recursive: true });
+        fs.mkdirSync(CORO_HOME, { recursive: true });
 
         // Race for the lock. Winner spawns; losers wait for daemon.json to appear.
         const lockDeadline = Date.now() + SPAWN_WAIT_MS;
@@ -312,22 +312,22 @@ export class DaemonClient {
 
     /**
      * Write a .mcp.json into a worktree so a per-card Claude session can talk
-     * to the daemon. Daemon sets CONCERTO_MCP_BRIDGE at startup; we fall back
+     * to the daemon. Daemon sets CORO_MCP_BRIDGE at startup; we fall back
      * to the sibling install if the env var isn't set.
      */
     async writeMcpConfig(worktreePath: string, cardId: string): Promise<void> {
         const runtime = await this.resolveRuntime();
-        const bridge = process.env.CONCERTO_MCP_BRIDGE || defaultBridgeScript();
+        const bridge = process.env.CORO_MCP_BRIDGE || defaultBridgeScript();
         if (!bridge) return;
         const config = {
             mcpServers: {
-                concerto: {
+                coro: {
                     command: 'node',
                     args: [bridge],
                     env: {
-                        CONCERTO_CARD_ID: cardId,
-                        CONCERTO_DAEMON_URL: runtime.base,
-                        CONCERTO_DAEMON_TOKEN: runtime.token,
+                        CORO_CARD_ID: cardId,
+                        CORO_DAEMON_URL: runtime.base,
+                        CORO_DAEMON_TOKEN: runtime.token,
                     },
                 },
             },
