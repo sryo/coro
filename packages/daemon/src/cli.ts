@@ -158,6 +158,6 @@ async function main() {
 }
 
 main().catch((err) => {
-    console.error(err);
+    process.stderr.write(`${err?.stack || err}\n`);
     process.exit(1);
 });

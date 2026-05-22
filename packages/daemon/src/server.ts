@@ -2,12 +2,15 @@ import http from 'http';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
+import { createLogger } from '@concerto/core';
 import { verifyAuth } from './auth';
 import projectsRoutes from './routes/projects';
 import stagesRoutes from './routes/stages';
 import cardsRoutes from './routes/cards';
 import messagesRoutes from './routes/messages';
 import './sse'; // wires core events → SSE
+
+const log = createLogger('server');
 
 export interface ServerOpts {
     port: number;
@@ -43,7 +46,7 @@ export function startServer(opts: ServerOpts): http.Server {
     app.notFound((c) => c.json({ error: { code: 'not_found', message: 'Not found' } }, 404));
 
     app.onError((err, c) => {
-        console.error('[server]', err);
+        log.error('unhandled error', { error: err?.message || String(err), stack: err?.stack });
         return c.json({ error: { code: 'internal', message: 'Internal server error' } }, 500);
     });
 

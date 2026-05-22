@@ -15,11 +15,15 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const clientEntry = path.resolve(here, '..', '..', 'client', 'dist', 'index.js');
 const { DaemonClient } = await import(clientEntry);
 
+function logError(payload) {
+    process.stderr.write('[concerto] ' + JSON.stringify(payload) + '\n');
+}
+
 function repoRoot() {
     try {
         return execSync('git rev-parse --show-toplevel', { encoding: 'utf8' }).trim();
     } catch {
-        console.error(JSON.stringify({ error: 'not in a git repo (run `git init` first)' }));
+        logError({ error: 'not in a git repo (run `git init` first)' });
         process.exit(1);
     }
 }
@@ -31,7 +35,7 @@ const client = new DaemonClient();
 try {
     await client.ensureRunning();
 } catch (err) {
-    console.error(JSON.stringify({ error: err?.message || String(err) }));
+    logError({ error: err?.message || String(err) });
     process.exit(1);
 }
 
@@ -45,7 +49,7 @@ try {
     process.exit(0);
 } catch (err) {
     if (err?.status !== 404) {
-        console.error(JSON.stringify({ error: err?.message || String(err) }));
+        logError({ error: err?.message || String(err) });
         process.exit(1);
     }
 }

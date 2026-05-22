@@ -1,6 +1,7 @@
 export * from './config';
 export * from './events';
 export * from './slug';
+export { createLogger, setLogSink, type Logger } from './logger';
 export { getDb, closeDb } from './db';
 export * as projects from './projects';
 export * as stages from './stages';
