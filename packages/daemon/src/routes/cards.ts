@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { cards, projects, stages, controller, worktrees, emitEvent, recordCardEvent } from '@concerto/core';
+import { cards, projects, stages, controller, worktrees, createCardEvent } from '@concerto/core';
 import type { Actor } from '@concerto/core';
 import { httpError, errorStatus, parseJsonBody } from './_helpers';
 import {
@@ -122,8 +122,14 @@ router.post('/cards/:id/notes', async (c) => {
     const card = cards.getCard(c.req.param('id'));
     if (!card) return httpError(c, 404, 'not_found', 'card not found');
     const actor = parseActor(body.actor, 'agent');
-    const at = recordCardEvent({ cardId: card.id, projectId: card.project_id, kind: 'note', actor, payload: { content: body.content } });
-    emitEvent('card:note', { card_id: card.id, project_id: card.project_id, content: body.content, actor, at });
+    const at = createCardEvent({
+        cardId: card.id,
+        projectId: card.project_id,
+        kind: 'note',
+        actor,
+        payload: { content: body.content },
+        emitPayload: { content: body.content },
+    });
     return c.json({ ok: true, at });
 });
 

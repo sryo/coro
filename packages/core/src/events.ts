@@ -25,20 +25,39 @@ export function emitEvent(type: string, data: Record<string, unknown>): void {
     }
 }
 
-export interface RecordCardEventInput {
+export interface CreateCardEventInput {
     cardId: string;
     projectId: string;
     kind: EventKind;
     actor: EventActor;
     payload: Record<string, unknown>;
+    /** SSE event name. Defaults to `card:<kind>`. */
+    event?: string;
+    /** Extra fields to merge into the SSE payload; card_id + project_id are added automatically. */
+    emitPayload?: Record<string, unknown>;
     at?: number;
 }
 
-export function recordCardEvent(input: RecordCardEventInput): number {
+/**
+ * INSERT a card event into the events table AND emit it on the SSE bus in one
+ * call. Replaces the old recordCardEvent + emitEvent pair that all five callers
+ * had to remember to invoke together.
+ */
+export function createCardEvent(input: CreateCardEventInput): number {
     const now = input.at ?? Date.now();
     getDb().prepare(`
         INSERT INTO events (card_id, project_id, kind, actor, payload_json, created_at)
         VALUES (?, ?, ?, ?, ?, ?)
     `).run(input.cardId, input.projectId, input.kind, input.actor, JSON.stringify(input.payload), now);
+
+    const eventName = input.event ?? `card:${input.kind}`;
+    const emitBody: Record<string, unknown> = {
+        card_id: input.cardId,
+        project_id: input.projectId,
+        actor: input.actor,
+        at: now,
+        ...(input.emitPayload || {}),
+    };
+    emitEvent(eventName, emitBody);
     return now;
 }

@@ -8,7 +8,7 @@ import {
     precheckMerge, performMerge, setMergeConflict,
     type MergeStrategy,
 } from './worktree';
-import { emitEvent, recordCardEvent } from './events';
+import { createCardEvent } from './events';
 
 export type { Actor } from '@concerto/types';
 
@@ -151,23 +151,17 @@ export function transition(input: TransitionInput): TransitionResult {
             WHERE id = ?
         `).run(...params);
         if (to.kind === 'done') setMergeConflict(card.id, null);
-        recordCardEvent({
+        createCardEvent({
             cardId: card.id,
             projectId: card.project_id,
             kind: 'stage_change',
             actor: input.actor,
             payload: { from_stage_id: from.id, to_stage_id: to.id, from_kind: from.kind, to_kind: to.kind, reason: input.reason || null },
+            event: 'card:stage_changed',
+            emitPayload: { from_stage_id: from.id, to_stage_id: to.id },
             at: now,
         });
     })();
-
-    emitEvent('card:stage_changed', {
-        card_id: card.id,
-        project_id: card.project_id,
-        from_stage_id: from.id,
-        to_stage_id: to.id,
-        actor: input.actor,
-    });
 
     return { ok: true, card: getCard(card.id)! };
 }
@@ -277,7 +271,7 @@ export function merge(input: MergeInput): MergeResult {
             SET stage_id = ?, position = ?, merged_at = ?, branch_name = NULL, worktree_path = NULL, updated_at = ?
             WHERE id = ?
         `).run(archive.id, 0, now, now, card.id);
-        recordCardEvent({
+        createCardEvent({
             cardId: card.id,
             projectId: card.project_id,
             kind: 'merge',
@@ -290,17 +284,15 @@ export function merge(input: MergeInput): MergeResult {
                 from_stage_id: from.id,
                 to_stage_id: archive.id,
             },
+            event: 'card:merged',
+            emitPayload: {
+                merge_sha: result.mergeSha,
+                strategy,
+                already_merged: result.alreadyMerged,
+            },
             at: now,
         });
     })();
-
-    emitEvent('card:merged', {
-        card_id: card.id,
-        project_id: card.project_id,
-        merge_sha: result.mergeSha,
-        strategy,
-        already_merged: result.alreadyMerged,
-    });
 
     return {
         ok: true,
@@ -325,17 +317,17 @@ export function abandon(cardId: string, opts: { stashDirty?: boolean; actor?: Ac
             UPDATE cards SET abandoned_at = ?, branch_name = NULL, worktree_path = NULL, updated_at = ?
             WHERE id = ?
         `).run(now, now, cardId);
-        recordCardEvent({
+        createCardEvent({
             cardId,
             projectId: card.project_id,
             kind: 'abandon',
             actor: opts.actor || 'user',
             payload: { stashed_ref: result.stashedRef || null, had_dirty_files: result.hadDirtyFiles },
+            event: 'card:abandoned',
+            emitPayload: { stashed_ref: result.stashedRef },
             at: now,
         });
     })();
-
-    emitEvent('card:abandoned', { card_id: cardId, project_id: card.project_id, stashed_ref: result.stashedRef });
 
     return {
         card: getCard(cardId)!,

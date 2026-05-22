@@ -4,40 +4,39 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import type { Card } from '@concerto/types';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 
 interface Props {
     projectId: string;
 }
 
-export function NewCardButton({ projectId }: Props) {
-    const [open, setOpen] = useState(false);
+// Inline form that lives at the bottom of the Backlog column. Click "+ new card"
+// to reveal an input. Enter submits, Escape cancels. No modal, no dimmed bg.
+export function InlineNewCardForm({ projectId }: Props) {
+    const [editing, setEditing] = useState(false);
     const [title, setTitle] = useState('');
-    const [description, setDescription] = useState('');
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const router = useRouter();
-    const titleRef = useRef<HTMLInputElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
 
-    function close() {
-        setOpen(false);
+    function reset() {
+        setEditing(false);
         setTitle('');
-        setDescription('');
         setError(null);
     }
 
-    async function create() {
-        if (!title.trim() || busy) return;
+    async function submit() {
+        const value = title.trim();
+        if (!value || busy) return;
         setBusy(true);
         setError(null);
         try {
-            await api.post<Card>(`/projects/${projectId}/cards`, {
-                title: title.trim(),
-                description: description.trim() || undefined,
-            });
-            close();
+            await api.post<Card>(`/projects/${projectId}/cards`, { title: value });
+            setTitle('');
+            // Keep editing open so the user can chain entries; refresh pulls in
+            // the new card via SSR (SSE will also surface it once that exists).
             router.refresh();
+            setTimeout(() => inputRef.current?.focus(), 0);
         } catch (err: any) {
             setError(err.body?.error?.message || err.message);
         } finally {
@@ -45,62 +44,37 @@ export function NewCardButton({ projectId }: Props) {
         }
     }
 
-    if (!open) {
+    if (!editing) {
         return (
-            <Button
-                variant="subtle"
-                size="sm"
+            <button
+                type="button"
                 onClick={() => {
-                    setOpen(true);
-                    setTimeout(() => titleRef.current?.focus(), 0);
+                    setEditing(true);
+                    setTimeout(() => inputRef.current?.focus(), 0);
                 }}
+                className="block w-full rounded-md border border-dashed border-[var(--border)] px-4 py-3 text-left text-xs text-[var(--muted-foreground)] hover:border-[var(--foreground)] hover:text-[var(--foreground)]"
             >
-                + New card
-            </Button>
+                + new card
+            </button>
         );
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 px-4 pt-24" onClick={close}>
-            <div
-                className="w-full max-w-lg rounded-lg border border-[var(--border)] bg-[var(--background)] p-6 shadow-xl"
-                onClick={(e) => e.stopPropagation()}
-            >
-                <h2 className="text-lg font-bold mb-4">New card</h2>
-                <input
-                    ref={titleRef}
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="Title"
-                    className="w-full rounded-md border border-[var(--border)] bg-transparent px-3 py-2 text-sm focus:outline-none focus:border-[var(--foreground)]"
-                    onKeyDown={(e) => {
-                        if (e.key === 'Escape') close();
-                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) create();
-                    }}
-                />
-                <div className="mt-3">
-                    <Textarea
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        placeholder="Description (optional, markdown)"
-                        rows={4}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Escape') close();
-                            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) create();
-                        }}
-                    />
-                </div>
-                {error && <p className="mt-3 text-xs text-[var(--muted-foreground)]">{error}</p>}
-                <div className="mt-5 flex items-center justify-between">
-                    <span className="text-xs text-[var(--muted-foreground)]">⌘↵ to create · esc to cancel</span>
-                    <div className="flex gap-2">
-                        <Button variant="ghost" size="sm" onClick={close} disabled={busy}>Cancel</Button>
-                        <Button size="sm" onClick={create} disabled={busy || !title.trim()}>
-                            {busy ? 'Creating…' : 'Create'}
-                        </Button>
-                    </div>
-                </div>
-            </div>
+        <div className="rounded-md border border-[var(--border)] bg-[var(--background)] p-4">
+            <input
+                ref={inputRef}
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                onBlur={() => { if (!title.trim()) reset(); }}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); submit(); }
+                    if (e.key === 'Escape') { e.preventDefault(); reset(); }
+                }}
+                placeholder="card title"
+                disabled={busy}
+                className="w-full bg-transparent text-sm font-semibold leading-snug placeholder:font-normal placeholder:text-[var(--muted-foreground)] focus:outline-none"
+            />
+            {error && <p className="mt-2 text-xs text-[var(--muted-foreground)]">{error}</p>}
         </div>
     );
 }
