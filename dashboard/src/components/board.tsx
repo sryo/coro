@@ -31,26 +31,12 @@ export function Board({ projectId, stages, initialCards }: Props) {
     const preDragRef = useRef<Card[] | null>(null);
     const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
-    const cardsByStage = useMemo(() => {
-        const map = new Map<string, Card[]>();
-        for (const s of stages) map.set(s.id, []);
-        for (const c of cards) {
-            if (!map.has(c.stage_id)) map.set(c.stage_id, []);
-            map.get(c.stage_id)!.push(c);
-        }
-        for (const list of map.values()) list.sort((a, b) => a.position - b.position);
-        return map;
-    }, [stages, cards]);
-
+    const cardsByStage = useMemo(() => groupByStage(stages, cards), [stages, cards]);
     const activeCard = activeId ? cards.find((c) => c.id === activeId) ?? null : null;
-
-    function findStageOf(cardId: string): string | undefined {
-        return cards.find((c) => c.id === cardId)?.stage_id;
-    }
 
     function resolveStageId(overId: string): string | undefined {
         if (overId.startsWith('stage:')) return overId.slice('stage:'.length);
-        return findStageOf(overId);
+        return cards.find((c) => c.id === overId)?.stage_id;
     }
 
     function onDragStart(e: DragStartEvent) {
@@ -63,17 +49,10 @@ export function Board({ projectId, stages, initialCards }: Props) {
         const { active, over } = e;
         if (!over) return;
         const activeIdStr = String(active.id);
-        const overIdStr = String(over.id);
-        const fromStage = findStageOf(activeIdStr);
-        const toStage = resolveStageId(overIdStr);
+        const fromStage = cards.find((c) => c.id === activeIdStr)?.stage_id;
+        const toStage = resolveStageId(String(over.id));
         if (!fromStage || !toStage || fromStage === toStage) return;
-        setCards((prev) => {
-            const moving = prev.find((c) => c.id === activeIdStr);
-            if (!moving) return prev;
-            const withoutMoving = prev.filter((c) => c.id !== activeIdStr);
-            const targetCount = withoutMoving.filter((c) => c.stage_id === toStage).length;
-            return [...withoutMoving, { ...moving, stage_id: toStage, position: targetCount }];
-        });
+        setCards((prev) => moveCardToStage(prev, activeIdStr, toStage));
     }
 
     async function onDragEnd(e: DragEndEvent) {
@@ -82,33 +61,15 @@ export function Board({ projectId, stages, initialCards }: Props) {
         setActiveId(null);
         preDragRef.current = null;
         if (!startCards) return;
-        const originalStage = startCards.find((c) => c.id === activeIdStr)?.stage_id;
-        const movedCard = cards.find((c) => c.id === activeIdStr);
-        if (!originalStage || !movedCard) return;
-        if (movedCard.stage_id === originalStage) return;
+        const original = startCards.find((c) => c.id === activeIdStr)?.stage_id;
+        const moved = cards.find((c) => c.id === activeIdStr);
+        if (!original || !moved || moved.stage_id === original) return;
 
-        try {
-            const updated = await api.post<Card>(`/cards/${activeIdStr}/transitions`, {
-                to_stage_id: movedCard.stage_id,
-                actor: 'user',
-            });
-            setCards((prev) => prev.map((c) => (c.id === activeIdStr ? updated : c)));
-        } catch (err: any) {
-            const allowed = err.body?.error?.allowed as string[] | undefined;
-            if (allowed && allowed.length > 0) {
-                try {
-                    const updated = await api.post<Card>(`/cards/${activeIdStr}/transitions`, {
-                        to_stage_id: allowed[0],
-                        actor: 'user',
-                    });
-                    setCards((prev) => prev.map((c) => (c.id === activeIdStr ? updated : c)));
-                    return;
-                } catch (err2: any) {
-                    setError(err2.message);
-                }
-            } else {
-                setError(err.message);
-            }
+        const result = await commitTransition(activeIdStr, moved.stage_id);
+        if (result.ok) {
+            setCards((prev) => prev.map((c) => (c.id === activeIdStr ? result.card : c)));
+        } else {
+            setError(result.message);
             setCards(startCards);
         }
     }
@@ -158,4 +119,46 @@ export function Board({ projectId, stages, initialCards }: Props) {
             </DndContext>
         </div>
     );
+}
+
+function groupByStage(stages: Stage[], cards: Card[]): Map<string, Card[]> {
+    const map = new Map<string, Card[]>();
+    for (const s of stages) map.set(s.id, []);
+    for (const c of cards) {
+        if (!map.has(c.stage_id)) map.set(c.stage_id, []);
+        map.get(c.stage_id)!.push(c);
+    }
+    for (const list of map.values()) list.sort((a, b) => a.position - b.position);
+    return map;
+}
+
+function moveCardToStage(prev: Card[], cardId: string, toStage: string): Card[] {
+    const moving = prev.find((c) => c.id === cardId);
+    if (!moving) return prev;
+    const without = prev.filter((c) => c.id !== cardId);
+    const targetCount = without.filter((c) => c.stage_id === toStage).length;
+    return [...without, { ...moving, stage_id: toStage, position: targetCount }];
+}
+
+type TransitionResult = { ok: true; card: Card } | { ok: false; message: string };
+
+// Try the requested transition. If the server rejects with an `allowed` hint
+// (e.g. the user dragged backlog->done and the only legal target is in_progress),
+// retry once with the first allowed stage. Either result tells the caller what to do.
+async function commitTransition(cardId: string, toStageId: string): Promise<TransitionResult> {
+    try {
+        const card = await api.post<Card>(`/cards/${cardId}/transitions`, { to_stage_id: toStageId, actor: 'user' });
+        return { ok: true, card };
+    } catch (err: any) {
+        const allowed = err.body?.error?.allowed as string[] | undefined;
+        if (allowed && allowed.length > 0) {
+            try {
+                const card = await api.post<Card>(`/cards/${cardId}/transitions`, { to_stage_id: allowed[0], actor: 'user' });
+                return { ok: true, card };
+            } catch (err2: any) {
+                return { ok: false, message: err2.message };
+            }
+        }
+        return { ok: false, message: err.message };
+    }
 }
