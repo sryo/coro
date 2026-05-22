@@ -75,8 +75,8 @@ concerto/
 ├── packages/
 │   ├── core/        db, claude driver, worktree, state machine
 │   ├── daemon/      HTTP server (Hono), CLI entry, MCP bridge
-│   ├── types/       shared interfaces
-│   ├── client/      DaemonClient: discover, ensureRunning, request, stream
+│   ├── types/       @concerto/types — shared interfaces
+│   ├── client/      @concerto/client — DaemonClient: discover, ensureRunning, request, stream
 │   └── skill/       /concerto + /concerto-* verb skills
 └── dashboard/       Next.js app
 ```

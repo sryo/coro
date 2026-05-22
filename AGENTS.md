@@ -36,8 +36,8 @@ The daemon hosts an MCP server scoped to your card:
 ```
 packages/core/    db, claude driver, worktree, state machine
 packages/daemon/  HTTP server (Hono) + CLI lifecycle + MCP bridge
-packages/types/   shared interfaces
-packages/client/  DaemonClient: discover, ensureRunning, request, stream
+packages/types/   @concerto/types — shared interfaces
+packages/client/  @concerto/client — DaemonClient: discover, ensureRunning, request, stream
 packages/skill/   /concerto-* verbs
 dashboard/        Next.js dashboard
 ```
