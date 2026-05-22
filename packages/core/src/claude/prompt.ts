@@ -29,9 +29,9 @@ Rules:
 MCP tools (concerto.*):
 - concerto.get_card — refresh your view of this card.
 - concerto.list_stages — see the legal stage names + kinds for this project.
-- concerto.set_status({ to_stage, reason? }) — move the card forward (or back). You can move yourself up to a review-kind stage. You cannot mark a card done or merged — only a human can.
+- concerto.set_status({ to_stage, reason? }) — move the card to another stage. The API returns { allowed: [...] } if the target is rejected; pick from that list and retry.
 - concerto.add_note({ content }) — log progress notes the user will see on the card.
-- concerto.request_review({ summary? }) — ask the human for review. Use this when you believe the work is done.`;
+- concerto.request_review({ summary? }) — call when the work is complete and ready for human review.`;
 }
 
 export function hashSystemPrompt(prompt: string): string {
