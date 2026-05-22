@@ -5,6 +5,10 @@ package-lock.json
 dist/
 *.tsbuildinfo
 dashboard/.next/
+# next-env.d.ts is auto-generated and flips between .next/dev and .next paths
+# depending on `next dev` vs `next build`. Letting it flip in version control
+# creates noise on every reviewer's first build.
+dashboard/next-env.d.ts
 dashboard/next-env.d.ts.bak
 
 # Concerto runtime files (per-user state lives in ~/.concerto, not here)

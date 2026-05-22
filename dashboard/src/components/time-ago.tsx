@@ -9,13 +9,16 @@ interface Props {
 }
 
 // Client-only relative-time formatter. Renders empty on SSR, fills in after mount, and
-// optionally ticks so the label stays fresh. Avoids the hydration mismatch you get if
-// the server renders "0s ago" and the client mounts a second later as "1s ago".
+// ticks on an interval so the label stays fresh. Setting state inside the effect is
+// the right call here even though react-hooks/set-state-in-effect flags it — the
+// component must render empty on the server to avoid hydration drift, then populate
+// once we're past hydration.
 export function TimeAgo({ ms, refreshMs = 30_000 }: Props) {
     const [text, setText] = useState<string>('');
 
     useEffect(() => {
         if (!ms) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setText('');
             return;
         }

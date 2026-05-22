@@ -24,7 +24,7 @@ export default async function HomePage() {
             <h1 className="text-4xl font-bold tracking-tight">Concerto</h1>
             {projects.length === 0 ? (
                 <p className="mt-6 text-[var(--muted-foreground)]">
-                    No projects yet. Run <code className="font-mono text-[var(--foreground)]">/concerto new "&lt;title&gt;"</code> in a git repo to bind it.
+                    No projects yet. Run <code className="font-mono text-[var(--foreground)]">/concerto new &quot;&lt;title&gt;&quot;</code> in a git repo to bind it.
                 </p>
             ) : (
                 <ul className="mt-12 space-y-1">

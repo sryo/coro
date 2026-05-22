@@ -48,7 +48,7 @@ export function ProjectMetaEditor({ project: initial }: Props) {
                     Project brief
                 </label>
                 <p className="text-xs text-[var(--muted-foreground)] mb-2">
-                    Injected into every card's Claude system prompt. Use ~200–500 chars to describe the codebase, conventions, and constraints.
+                    Injected into every card&apos;s Claude system prompt. Use ~200–500 chars to describe the codebase, conventions, and constraints.
                 </p>
                 <Textarea
                     rows={5}
