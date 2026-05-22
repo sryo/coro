@@ -56,6 +56,7 @@ interface Seeded {
     review: NonNullable<ReturnType<typeof import('../stages').getStage>>;
     done: NonNullable<ReturnType<typeof import('../stages').getStage>>;
     archive: NonNullable<ReturnType<typeof import('../stages').getStage>>;
+    abandoned: NonNullable<ReturnType<typeof import('../stages').getStage>>;
 }
 
 function seedProject(): Seeded {
@@ -69,6 +70,7 @@ function seedProject(): Seeded {
         review: mod.stages.findByKind(all, 'review')!,
         done: mod.stages.findByKind(all, 'done')!,
         archive: mod.stages.findByKind(all, 'archive')!,
+        abandoned: mod.stages.findByKind(all, 'abandoned')!,
     };
 }
 
@@ -94,8 +96,9 @@ describe('controller.parseActor', () => {
 });
 
 describe('controller.requiresMergeEndpoint', () => {
-    it('is true for archive', () => {
+    it('is true for archive and abandoned', () => {
         expect(mod.controller.requiresMergeEndpoint('archive')).toBe(true);
+        expect(mod.controller.requiresMergeEndpoint('abandoned')).toBe(true);
     });
     it('is false for every other kind', () => {
         for (const k of ['backlog', 'ready', 'active', 'review', 'done'] as const) {
@@ -241,10 +244,60 @@ describe('controller.canAbandon', () => {
         if (!result.ok) expect(result.code).toBe('archive_immutable');
     });
 
+    it('rejects already-abandoned cards', () => {
+        const card = mod.cards.createCard({ project_id: s.project.id, title: 'twice-abandoned' });
+        mod.getDb().prepare('UPDATE cards SET stage_id = ? WHERE id = ?').run(s.abandoned.id, card.id);
+        const reloaded = mod.cards.getCard(card.id)!;
+        const result = mod.controller.canAbandon(reloaded);
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.code).toBe('archive_immutable');
+    });
+
     it('accepts a backlog card', () => {
         const card = mod.cards.createCard({ project_id: s.project.id, title: 'still-here' });
         const result = mod.controller.canAbandon(card);
         expect(result.ok).toBe(true);
+    });
+});
+
+describe('controller.abandon', () => {
+    let s: Seeded;
+    beforeEach(() => { s = seedProject(); });
+
+    it('moves the card into the abandoned stage and stamps abandoned_at', () => {
+        const card = mod.cards.createCard({ project_id: s.project.id, title: 'drop-this' });
+        const result = mod.controller.abandon(card.id, { actor: 'user' });
+        expect(result).not.toBeNull();
+        expect(result!.card.stage_id).toBe(s.abandoned.id);
+        expect(result!.card.abandoned_at).toBeTruthy();
+        expect(result!.card.branch_name).toBeNull();
+        expect(result!.card.worktree_path).toBeNull();
+    });
+
+    it('rejects direct transitions targeting the abandoned stage', () => {
+        const card = mod.cards.createCard({ project_id: s.project.id, title: 'no-direct-abandon' });
+        const result = mod.controller.transition({
+            cardId: card.id,
+            toStageId: s.abandoned.id,
+            actor: 'user',
+        });
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+            expect(result.code).toBe('archive_via_merge');
+            expect(result.hint).toMatch(/abandon endpoint/);
+        }
+    });
+
+    it('rejects any transition from abandoned with archive_immutable', () => {
+        const card = mod.cards.createCard({ project_id: s.project.id, title: 'stays-dead' });
+        mod.controller.abandon(card.id, { actor: 'user' });
+        const result = mod.controller.transition({
+            cardId: card.id,
+            toStageId: s.backlog.id,
+            actor: 'user',
+        });
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.code).toBe('archive_immutable');
     });
 });
 

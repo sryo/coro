@@ -22,6 +22,7 @@ export const DEFAULT_STAGES: ReadonlyArray<{ name: string; kind: StageKind }> = 
     { name: 'Review', kind: 'review' },
     { name: 'Done', kind: 'done' },
     { name: 'Merged', kind: 'archive' },
+    { name: 'Abandoned', kind: 'abandoned' },
 ];
 
 function intFromEnv(name: string, fallback: number): number {

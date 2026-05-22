@@ -2,7 +2,7 @@
 // package compiles to declarations + an empty JS module so dashboards and
 // scripts can import canonical shapes without pulling in better-sqlite3 etc.
 
-export type StageKind = 'backlog' | 'ready' | 'active' | 'review' | 'done' | 'archive';
+export type StageKind = 'backlog' | 'ready' | 'active' | 'review' | 'done' | 'archive' | 'abandoned';
 
 export type EventKind = 'stage_change' | 'note' | 'merge' | 'abandon';
 

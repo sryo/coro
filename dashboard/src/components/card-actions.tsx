@@ -30,7 +30,7 @@ export function CardActions({ card: initialCard, stages }: Props) {
     const inReview = currentStage?.kind === 'review';
     const inDone = currentStage?.kind === 'done';
     const inBacklog = currentStage?.kind === 'backlog';
-    const archived = currentStage?.kind === 'archive' || !!card.abandoned_at;
+    const archived = currentStage?.kind === 'archive' || currentStage?.kind === 'abandoned' || !!card.abandoned_at;
     const statusLine = inReview
         ? 'Move it forward when reviewed.'
         : inDone

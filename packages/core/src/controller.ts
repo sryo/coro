@@ -23,13 +23,20 @@ export function parseActor(input: unknown, fallback: Actor): Actor {
 
 /**
  * Stage kinds that require going through a dedicated endpoint rather than a
- * direct transition. Today that's archive (POST /cards/:id/merge); extend the
- * set here when new gated kinds appear.
+ * direct transition. archive is reached via POST /cards/:id/merge; abandoned
+ * is reached via POST /cards/:id/abandon.
  */
-const ENDPOINT_KINDS: ReadonlySet<StageKind> = new Set(['archive']);
+const ENDPOINT_KINDS: ReadonlySet<StageKind> = new Set(['archive', 'abandoned']);
+
+const IMMUTABLE_KINDS: ReadonlySet<StageKind> = new Set(['archive', 'abandoned']);
 
 export function requiresMergeEndpoint(toKind: StageKind): boolean {
     return ENDPOINT_KINDS.has(toKind);
+}
+
+/** Endpoint hint shown when a direct transition targets a gated kind. */
+function endpointForKind(kind: StageKind): string {
+    return kind === 'abandoned' ? 'POST /cards/:id/abandon' : 'POST /cards/:id/merge';
 }
 
 export interface TransitionInput {
@@ -56,7 +63,7 @@ export type TransitionError =
 export function allowedTransitions(card: Card, actor: Actor): Stage[] {
     const from = getStage(card.stage_id);
     if (!from) return [];
-    if (from.kind === 'archive') return []; // immutable
+    if (IMMUTABLE_KINDS.has(from.kind)) return []; // immutable
     const all = listStages(card.project_id);
     return all.filter((s) => {
         if (s.id === from.id) return false;
@@ -98,16 +105,17 @@ export function transition(input: TransitionInput): TransitionResult {
 
     const allowed = () => transitionTargets(input.cardId, input.actor);
 
-    if (from.kind === 'archive') {
-        return { ok: false, code: 'archive_immutable', message: 'cards in archive stages are immutable', allowed: [] };
+    if (IMMUTABLE_KINDS.has(from.kind)) {
+        return { ok: false, code: 'archive_immutable', message: `cards in ${from.kind} stages are immutable`, allowed: [] };
     }
 
     if (requiresMergeEndpoint(to.kind)) {
+        const endpoint = endpointForKind(to.kind);
         return {
             ok: false,
             code: 'archive_via_merge',
-            message: `${to.kind} stages are only reachable via POST /cards/:id/merge`,
-            hint: 'use the merge endpoint instead of a direct transition',
+            message: `${to.kind} stages are only reachable via ${endpoint}`,
+            hint: `use the ${to.kind === 'abandoned' ? 'abandon' : 'merge'} endpoint instead of a direct transition`,
             allowed: allowed(),
         };
     }
@@ -354,17 +362,26 @@ export function merge(input: MergeInput): MergeResult {
 
 export type CanAbandonResult =
     | { ok: true }
-    | { ok: false; code: 'card_not_found' | 'stage_not_found' | 'archive_immutable'; message: string };
+    | { ok: false; code: 'card_not_found' | 'stage_not_found' | 'archive_immutable' | 'no_abandoned_stage'; message: string; hint?: string };
 
 /**
- * Preflight check for abandon: card exists and isn't already in an archive
- * stage (already merged). Pure predicate — does not touch the worktree.
+ * Preflight check for abandon: card exists, isn't already in an immutable
+ * (archive/abandoned) stage, and the project has an abandoned-kind stage to
+ * move the card into. Pure predicate — does not touch the worktree.
  */
 export function canAbandon(card: Card): CanAbandonResult {
     const stage = getStage(card.stage_id);
     if (!stage) return { ok: false, code: 'stage_not_found', message: 'current stage missing' };
-    if (stage.kind === 'archive') {
-        return { ok: false, code: 'archive_immutable', message: 'cards in archive stages are immutable' };
+    if (IMMUTABLE_KINDS.has(stage.kind)) {
+        return { ok: false, code: 'archive_immutable', message: `cards in ${stage.kind} stages are immutable` };
+    }
+    if (!findByKind(listStages(card.project_id), 'abandoned')) {
+        return {
+            ok: false,
+            code: 'no_abandoned_stage',
+            message: 'project has no abandoned stage configured',
+            hint: 'add an abandoned-kind stage in settings',
+        };
     }
     return { ok: true };
 }
@@ -376,6 +393,8 @@ export function abandon(cardId: string, opts: { stashDirty?: boolean; actor?: Ac
     if (!check.ok) {
         throw Object.assign(new Error(check.message), { code: check.code });
     }
+    const from = getStage(card.stage_id)!;
+    const abandoned = findByKind(listStages(card.project_id), 'abandoned')!;
     const wt = getWorktreeByCard(cardId);
 
     const result = wt
@@ -384,19 +403,29 @@ export function abandon(cardId: string, opts: { stashDirty?: boolean; actor?: Ac
 
     const now = Date.now();
     const db = getDb();
+    const maxRow = db.prepare('SELECT COALESCE(MAX(position), -1) AS m FROM cards WHERE project_id = ? AND stage_id = ?')
+        .get(card.project_id, abandoned.id) as { m: number };
+    const newPosition = maxRow.m + 1;
+
     db.transaction(() => {
         db.prepare(`
-            UPDATE cards SET abandoned_at = ?, branch_name = NULL, worktree_path = NULL, updated_at = ?
+            UPDATE cards
+            SET stage_id = ?, position = ?, abandoned_at = ?, branch_name = NULL, worktree_path = NULL, updated_at = ?
             WHERE id = ?
-        `).run(now, now, cardId);
+        `).run(abandoned.id, newPosition, now, now, cardId);
         createCardEvent({
             cardId,
             projectId: card.project_id,
             kind: 'abandon',
             actor: opts.actor || 'user',
-            payload: { stashed_ref: result.stashedRef || null, had_dirty_files: result.hadDirtyFiles },
+            payload: {
+                stashed_ref: result.stashedRef || null,
+                had_dirty_files: result.hadDirtyFiles,
+                from_stage_id: from.id,
+                to_stage_id: abandoned.id,
+            },
             event: 'card:abandoned',
-            emitPayload: { stashed_ref: result.stashedRef },
+            emitPayload: { stashed_ref: result.stashedRef, from_stage_id: from.id, to_stage_id: abandoned.id },
             at: now,
         });
     })();

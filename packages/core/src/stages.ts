@@ -11,7 +11,7 @@ export interface StageInput {
 }
 
 const VALID_KINDS: ReadonlySet<StageKind> = new Set([
-    'backlog', 'ready', 'active', 'review', 'done', 'archive',
+    'backlog', 'ready', 'active', 'review', 'done', 'archive', 'abandoned',
 ]);
 
 export function listStages(projectId: string): Stage[] {
@@ -49,7 +49,7 @@ export function filterByKind(stages: Stage[], kind: StageKind): Stage[] {
 
 /**
  * Replace all stages for a project. Validates the new set:
- * - at least one of each load-bearing kind: backlog, active, review, archive
+ * - at least one of each load-bearing kind: backlog, active, review, archive, abandoned
  * - names unique
  * - positions assigned by array order
  *
@@ -62,7 +62,7 @@ export function replaceStages(projectId: string, stages: StageInput[]): { ok: tr
     for (const s of stages) {
         if (!VALID_KINDS.has(s.kind)) return { ok: false, reason: `invalid kind: ${s.kind}` };
     }
-    const required: StageKind[] = ['backlog', 'active', 'review', 'archive'];
+    const required: StageKind[] = ['backlog', 'active', 'review', 'archive', 'abandoned'];
     for (const req of required) {
         if (!stages.find(s => s.kind === req)) return { ok: false, reason: `missing required kind: ${req}` };
     }

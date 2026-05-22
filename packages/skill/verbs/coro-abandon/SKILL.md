@@ -36,4 +36,4 @@ Steps:
 
 5. On 404: card not found. On 409: print the error message and stop.
 
-Note: this does NOT delete the card. The card row remains in the DB with `abandoned_at` set; it stops appearing in active boards. To delete a backlog-only card, use `DELETE /cards/<id>` (not surfaced as a verb in v0).
+Note: this does NOT delete the card. The card row stays in the DB with `abandoned_at` set and is moved into the project's `abandoned`-kind stage (an immutable archive column, separate from `Merged`). To delete a backlog-only card, use `DELETE /cards/<id>` (not surfaced as a verb in v0).

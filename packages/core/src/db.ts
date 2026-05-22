@@ -178,4 +178,44 @@ const MIGRATIONS: ReadonlyArray<{ version: number; sql: string }> = [
             ALTER TABLE worktrees ADD COLUMN changed_files INTEGER NOT NULL DEFAULT 0;
         `,
     },
+    // Abandoned cards used to sit in their original stage with abandoned_at
+    // stamped — surfacing as ghosts in Backlog/etc. We now treat 'abandoned' as
+    // its own stage kind alongside 'archive'. This migration adds the stage to
+    // every project that doesn't have one, then sweeps existing abandoned cards
+    // into it.
+    {
+        version: 7,
+        sql: `
+            INSERT INTO stages (id, project_id, name, position, kind, created_at)
+            SELECT
+                lower(hex(randomblob(4))),
+                p.id,
+                'Abandoned',
+                COALESCE((SELECT MAX(position) + 1 FROM stages WHERE project_id = p.id), 0),
+                'abandoned',
+                CAST(strftime('%s', 'now') AS INTEGER) * 1000
+            FROM projects p
+            WHERE NOT EXISTS (
+                SELECT 1 FROM stages WHERE project_id = p.id AND kind = 'abandoned'
+            );
+
+            WITH ordered AS (
+                SELECT
+                    c.id AS card_id,
+                    ROW_NUMBER() OVER (PARTITION BY c.project_id ORDER BY c.abandoned_at, c.id) - 1 AS rn
+                FROM cards c
+                WHERE c.abandoned_at IS NOT NULL
+                  AND c.stage_id NOT IN (SELECT id FROM stages WHERE kind = 'abandoned')
+            )
+            UPDATE cards
+            SET stage_id = (
+                    SELECT s.id FROM stages s
+                    WHERE s.project_id = cards.project_id AND s.kind = 'abandoned'
+                    LIMIT 1
+                ),
+                position = (SELECT rn FROM ordered WHERE ordered.card_id = cards.id),
+                updated_at = CAST(strftime('%s', 'now') AS INTEGER) * 1000
+            WHERE cards.id IN (SELECT card_id FROM ordered);
+        `,
+    },
 ];

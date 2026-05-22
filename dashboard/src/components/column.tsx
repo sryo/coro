@@ -180,9 +180,9 @@ function StageMenu({
                         </div>
                     ) : (
                         <>
-                            {stage.kind === 'backlog' || stage.kind === 'archive' ? (
+                            {stage.kind === 'backlog' || stage.kind === 'archive' || stage.kind === 'abandoned' ? (
                                 <p className="px-3 py-1 text-[var(--muted-foreground)]">
-                                    {stage.kind === 'backlog' ? 'backlog stage' : 'archive stage'}
+                                    {stage.kind === 'backlog' ? 'backlog stage' : `${stage.kind} stage`}
                                 </p>
                             ) : stage.kind === 'review' ? (
                                 <button
