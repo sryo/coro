@@ -1,64 +1,125 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import type { Card, WorktreeBoardMeta } from '@coro/types';
+import { useRouter } from 'next/navigation';
+import { api } from '@/lib/api';
+import type { Card, StageKind, WorktreeBoardMeta } from '@coro/types';
 import { TimeAgo } from '@/components/time-ago';
+import { InlineText } from '@/components/inline-edit';
+import { useSelection } from '@/components/card-selection-context';
+import { cn } from '@/lib/utils';
 
 interface Props {
     projectId: string;
     card: Card;
+    stageKind?: StageKind;
     worktreeMeta?: WorktreeBoardMeta;
     streaming?: boolean;
     dragging?: boolean;
 }
 
-export function CardRow({ projectId, card, worktreeMeta, streaming, dragging }: Props) {
+export function CardRow({ projectId, card, stageKind, worktreeMeta, streaming, dragging }: Props) {
+    const router = useRouter();
+    const selection = useSelection();
+    const selected = selection?.has(card.id) ?? false;
+    const [editing, setEditing] = useState(false);
+    const [optimisticTitle, setOptimisticTitle] = useState<string | null>(null);
+
     const dirty = (worktreeMeta?.dirty_files ?? 0) > 0;
     const conflict = worktreeMeta?.merge_conflict_at != null;
-    // Shout once: one badge wins. streaming > conflict > dirty. Rebase /
-    // worktree-missing cues live on the card detail page now.
-    const badge = streaming
-        ? { color: 'bg-[var(--foreground)]', pulse: true, title: 'agent is mid-turn', label: 'streaming' }
-        : conflict
-            ? { color: 'bg-red-500', pulse: false, title: 'last merge attempt had conflicts', label: 'merge conflict' }
-            : dirty
-                ? { color: 'bg-orange-500', pulse: false, title: `worktree has ${worktreeMeta!.dirty_files} uncommitted file(s)`, label: 'dirty worktree' }
-                : null;
+    // Selection wins the left rule (the one strong move). Status colours stay flat
+    // and saturated when the card is unselected; when both are true, the accent
+    // outline carries selection and the warning still reads in the side rule.
+    const leftRule = selected
+        ? 'border-l-2 border-[var(--accent)]'
+        : streaming
+            ? 'border-l-2 border-[var(--foreground)] animate-pulse'
+            : conflict
+                ? 'border-l-2 border-red-500'
+                : dirty
+                    ? 'border-l-2 border-orange-500'
+                    : '';
+
+    const wantsAttention = stageKind === 'review';
+    const titleClass = wantsAttention
+        ? 'text-base font-bold leading-snug'
+        : 'text-sm font-semibold leading-snug';
+
+    const surfaceClass = cn(
+        'block bg-[#ffd000] text-[#3a2d0a] p-4',
+        leftRule,
+        selected && 'ring-2 ring-[var(--accent)]',
+        dragging
+            ? 'shadow-xl cursor-grabbing animate-[lift-rotate_150ms_ease-out_forwards]'
+            : 'cursor-grab',
+    );
+
+    async function rename(title: string) {
+        setOptimisticTitle(title);
+        try {
+            await api.patch(`/cards/${card.id}`, { title });
+            setEditing(false);
+            router.refresh();
+        } catch {
+            setOptimisticTitle(null);
+        }
+    }
+
+    const title = optimisticTitle ?? card.title;
+
+    if (editing) {
+        return (
+            <div className={surfaceClass} onPointerDown={(e) => e.stopPropagation()}>
+                <div className={titleClass}>
+                    <InlineText
+                        value={title}
+                        autoEdit
+                        placeholder="Card title"
+                        onSubmit={rename}
+                        onCancel={() => setEditing(false)}
+                    />
+                </div>
+                <CardMeta card={card} title={title} />
+            </div>
+        );
+    }
+
+    function onClick(e: React.MouseEvent) {
+        if (dragging) { e.preventDefault(); return; }
+        if (selection && (e.metaKey || e.ctrlKey || e.shiftKey)) {
+            e.preventDefault();
+            selection.toggle(card.id);
+        }
+    }
 
     return (
         <Link
             href={`/p/${projectId}/c/${card.id}`}
-            onClick={(e) => { if (dragging) e.preventDefault(); }}
-            className={`block rounded-md border border-[var(--border)] bg-[var(--background)] p-4 hover:border-[var(--foreground)] ${dragging ? 'shadow-lg cursor-grabbing' : 'cursor-grab'}`}
+            onClick={onClick}
+            className={cn(surfaceClass, 'group/card')}
         >
-            <div className="flex items-start gap-2">
-                {badge && (
-                    <span
-                        // WHY mt-1.5: optical alignment of the 8px dot with the first text line.
-                        className={`mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${badge.color} ${badge.pulse ? 'animate-pulse' : ''}`}
-                        title={badge.title}
-                        aria-label={badge.label}
-                    />
-                )}
-                <div className="text-sm font-semibold leading-snug">{card.title}</div>
+            <div
+                className={cn(titleClass, 'cursor-text rounded-sm -mx-1 px-1 break-words hover:bg-[color-mix(in_srgb,var(--foreground)_6%,transparent)]')}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setEditing(true); }}
+            >
+                {title}
             </div>
-            <div className="mt-2 flex items-baseline gap-3 text-xs text-[var(--muted-foreground)]">
-                <span className="font-mono">{card.id.slice(0, 6)}</span>
-                {card.branch_name && (
-                    <span className="font-mono truncate">{card.branch_name.replace(/^coro\//, '')}</span>
-                )}
-            </div>
-            <CardTimestamp card={card} />
+            <CardMeta card={card} title={title} />
         </Link>
     );
 }
 
-function CardTimestamp({ card }: { card: Card }) {
+function CardMeta({ card, title, children }: { card: Card; title: string; children?: React.ReactNode }) {
     const recent = pickRecentTimestamp(card);
-    if (!recent) return null;
+    const branch = card.branch_name?.replace(/^coro\//, '');
+    if (!recent && !branch && !children) return null;
+    void title;
     return (
-        <div className="mt-2 text-xs text-[var(--muted-foreground)]">
-            {recent.label} <TimeAgo ms={recent.ms} />
+        <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs opacity-60">
+            {branch && <span className="font-mono break-all">{branch}</span>}
+            {recent && <span>{recent.label} <TimeAgo ms={recent.ms} /></span>}
+            {children}
         </div>
     );
 }
@@ -72,3 +133,4 @@ function pickRecentTimestamp(card: Card): { label: string; ms: number } | null {
     if (card.created_at) return { label: 'added', ms: card.created_at };
     return null;
 }
+

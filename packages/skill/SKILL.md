@@ -1,6 +1,6 @@
 ---
 name: coro
-description: "Kanban board for Claude Code conversations in this repo. Each card is a Claude conversation that runs in its own git worktree, so multiple cards can be worked in parallel. Use /coro to open the board, /coro-new to create a card, /coro-start to begin work in a worktree. Run any coro-* verb in any git repo; the daemon auto-spawns and the repo binds itself on first use."
+description: "Kanban board to run Claude Code conversations in parallel."
 license: MIT
 ---
 

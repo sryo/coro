@@ -94,14 +94,14 @@ You earn impact by leaving things out, not piling things on. Thirteen rules belo
 
 **Rule.** Let the user act on the thing itself.
 **Why.** A lot of chrome exists because the content isn't touchable. If the title renames on click and the card drags to move, the screen needs less furniture around it.
-**Do** — make the content the interaction surface; reveal controls on hover or focus.
-**Don't** — wrap every object in a toolbar in case the user wants to do something.
+**Do** — make the content the interaction surface; reveal controls on hover or focus. Physical metaphors earn their place when they ARE the interaction — a card you can drag, fold, stick.
+**Don't** — wrap every object in a toolbar in case the user wants to do something. Don't bolt on materiality (shadows, folds, textures) as decoration.
 
 ---
 
 ## Icons
 
-The principles above apply to icons too. The specifics:
+The principles above apply to icons too. The specifics below — strokes, fills, the no-skeuomorphism rule — govern icons. UI surfaces answer to the thirteen above, not this section.
 
 **Shape.**
 - Geometric. Built from circles, squares, rounded rectangles. Nothing organic.

@@ -8,6 +8,7 @@ import projectsRoutes from './routes/projects';
 import stagesRoutes from './routes/stages';
 import cardsRoutes from './routes/cards';
 import messagesRoutes from './routes/messages';
+import filesRoutes from './routes/files';
 import './sse'; // wires core events → SSE
 
 const log = createLogger('server');
@@ -42,6 +43,7 @@ export function startServer(opts: ServerOpts): http.Server {
     app.route('/', stagesRoutes);
     app.route('/', cardsRoutes);
     app.route('/', messagesRoutes);
+    app.route('/', filesRoutes);
 
     app.notFound((c) => c.json({ error: { code: 'not_found', message: 'Not found' } }, 404));
 

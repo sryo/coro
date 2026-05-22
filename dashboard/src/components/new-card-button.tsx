@@ -17,7 +17,7 @@ export function InlineNewCardForm({ projectId }: Props) {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const router = useRouter();
-    const inputRef = useRef<HTMLInputElement>(null);
+    const inputRef = useRef<HTMLTextAreaElement>(null);
 
     function reset() {
         setEditing(false);
@@ -33,8 +33,6 @@ export function InlineNewCardForm({ projectId }: Props) {
         try {
             await api.post<Card>(`/projects/${projectId}/cards`, { title: value });
             setTitle('');
-            // Keep editing open so the user can chain entries; refresh pulls in
-            // the new card via SSR (SSE will also surface it once that exists).
             router.refresh();
             setTimeout(() => inputRef.current?.focus(), 0);
         } catch (err: any) {
@@ -52,7 +50,7 @@ export function InlineNewCardForm({ projectId }: Props) {
                     setEditing(true);
                     setTimeout(() => inputRef.current?.focus(), 0);
                 }}
-                className="block w-full rounded-md border border-dashed border-[var(--border)] px-4 py-3 text-left text-xs text-[var(--muted-foreground)] hover:border-[var(--foreground)] hover:text-[var(--foreground)]"
+                className="sticky-fold block w-full bg-[#ffd000] text-[#3a2d0a] px-4 py-3 text-left text-xs hover:opacity-95"
             >
                 + new card
             </button>
@@ -60,21 +58,22 @@ export function InlineNewCardForm({ projectId }: Props) {
     }
 
     return (
-        <div className="rounded-md border border-[var(--border)] bg-[var(--background)] p-4">
-            <input
+        <div className="sticky-fold bg-[#ffd000] text-[#3a2d0a] p-4">
+            <textarea
                 ref={inputRef}
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                onBlur={() => { if (!title.trim()) reset(); }}
+                onBlur={() => { if (title.trim()) submit(); else reset(); }}
                 onKeyDown={(e) => {
-                    if (e.key === 'Enter') { e.preventDefault(); submit(); }
+                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
                     if (e.key === 'Escape') { e.preventDefault(); reset(); }
                 }}
                 placeholder="card title"
                 disabled={busy}
-                className="w-full bg-transparent text-sm font-semibold leading-snug placeholder:font-normal placeholder:text-[var(--muted-foreground)] focus:outline-none"
+                rows={1}
+                className="w-full resize-none bg-transparent text-sm font-semibold leading-snug placeholder:font-normal placeholder:opacity-60 focus:outline-none [field-sizing:content]"
             />
-            {error && <p className="mt-2 text-xs text-[var(--muted-foreground)]">{error}</p>}
+            {error && <p className="mt-2 text-xs opacity-60">{error}</p>}
         </div>
     );
 }

@@ -56,6 +56,8 @@ export const api = {
 const KNOWN_EVENTS = [
     'connected',
     'heartbeat',
+    'card:created',
+    'card:deleted',
     'card:message',
     'card:turn_started',
     'card:text_stream',

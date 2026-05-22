@@ -43,6 +43,18 @@ export function useBoardState(projectId: string, initialCards: Card[]): BoardSta
     useEffect(() => {
         const es = openProjectStream(projectId, (type, data) => {
             const cardId = data?.card_id;
+            if (type === 'card:created' && cardId) {
+                api.get<Card>(`/cards/${cardId}`)
+                    .then((card) => {
+                        setCards((prev) => (prev.find((c) => c.id === card.id) ? prev : [...prev, card]));
+                    })
+                    .catch(() => {});
+                return;
+            }
+            if (type === 'card:deleted' && cardId) {
+                setCards((prev) => prev.filter((c) => c.id !== cardId));
+                return;
+            }
             if (type === 'card:turn_started' && cardId) {
                 setStreamingCardIds((prev) => {
                     if (prev.has(cardId)) return prev;
@@ -87,15 +99,12 @@ export function useBoardState(projectId: string, initialCards: Card[]): BoardSta
                 setCards((prev) => prev.filter((c) => c.id !== cardId));
                 return;
             }
-            if ((type === 'worktree:removed' || type === 'worktree:created') && cardId) {
+            if (type === 'worktree:removed' && cardId) {
                 setWorktreeMeta((prev) => {
-                    if (type === 'worktree:removed') {
-                        if (!(cardId in prev)) return prev;
-                        const next = { ...prev };
-                        delete next[cardId];
-                        return next;
-                    }
-                    return prev;
+                    if (!(cardId in prev)) return prev;
+                    const next = { ...prev };
+                    delete next[cardId];
+                    return next;
                 });
                 return;
             }

@@ -52,7 +52,10 @@ export function filterByKind(stages: Stage[], kind: StageKind): Stage[] {
  * - at least one of each load-bearing kind: backlog, active, review, archive
  * - names unique
  * - positions assigned by array order
- * Cards referencing removed stages would be orphaned, so we refuse if any exist.
+ *
+ * Diffs old vs new by id. Refuses only the operation that would orphan a card:
+ * removing a stage that still has cards in it. Renames, reorders, kind changes,
+ * adds, and removing-an-empty-stage all proceed.
  */
 export function replaceStages(projectId: string, stages: StageInput[]): { ok: true } | { ok: false; reason: string } {
     if (stages.length === 0) return { ok: false, reason: 'at least one stage required' };
@@ -70,20 +73,46 @@ export function replaceStages(projectId: string, stages: StageInput[]): { ok: tr
     }
 
     const db = getDb();
-    const cardCount = (db.prepare('SELECT COUNT(*) as n FROM cards WHERE project_id = ?').get(projectId) as { n: number }).n;
-    if (cardCount > 0) {
-        return { ok: false, reason: 'cannot replace stages while cards exist (v0 limit; v1 will support remap)' };
+    const existing = listStages(projectId);
+    const existingById = new Map(existing.map((s) => [s.id, s]));
+    const submittedIds = new Set(stages.map((s) => s.id).filter((id): id is string => !!id));
+
+    for (const s of stages) {
+        if (s.id && !existingById.has(s.id)) return { ok: false, reason: `unknown stage id: ${s.id}` };
+    }
+
+    const removedIds = [...existingById.keys()].filter((id) => !submittedIds.has(id));
+    for (const id of removedIds) {
+        const n = (db.prepare('SELECT COUNT(*) as n FROM cards WHERE stage_id = ?').get(id) as { n: number }).n;
+        if (n > 0) {
+            const stage = existingById.get(id)!;
+            return { ok: false, reason: `cannot remove stage '${stage.name}': ${n} card(s) still in it` };
+        }
     }
 
     const tx = db.transaction(() => {
-        db.prepare('DELETE FROM stages WHERE project_id = ?').run(projectId);
-        const insert = db.prepare(`
-            INSERT INTO stages (id, project_id, name, position, kind, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-        `);
+        if (removedIds.length > 0) {
+            const placeholders = removedIds.map(() => '?').join(',');
+            db.prepare(`DELETE FROM stages WHERE id IN (${placeholders})`).run(...removedIds);
+        }
+        // UNIQUE(project_id, position) means a straight UPDATE pass can collide
+        // mid-reorder. Park preserved stages at high offsets first, then settle.
+        const POSITION_PARK = 1_000_000;
+        const parkPosition = db.prepare('UPDATE stages SET position = ? WHERE id = ?');
+        existing.forEach((s, i) => {
+            if (submittedIds.has(s.id)) parkPosition.run(POSITION_PARK + i, s.id);
+        });
+        const update = db.prepare('UPDATE stages SET name = ?, position = ?, kind = ? WHERE id = ?');
+        const insert = db.prepare(
+            'INSERT INTO stages (id, project_id, name, position, kind, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+        );
         const now = Date.now();
         stages.forEach((s, position) => {
-            insert.run(s.id || nanoid(8), projectId, s.name, position, s.kind, now);
+            if (s.id && existingById.has(s.id)) {
+                update.run(s.name, position, s.kind, s.id);
+            } else {
+                insert.run(s.id || nanoid(8), projectId, s.name, position, s.kind, now);
+            }
         });
     });
     tx();
