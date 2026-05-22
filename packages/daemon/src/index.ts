@@ -1,6 +1,14 @@
 import fs from 'fs';
 import path from 'path';
-import { CONCERTO_HOME, DEFAULT_API_PORT, getDb, worktrees } from '@concerto/core';
+import {
+    CONCERTO_HOME,
+    DEFAULT_API_PORT,
+    RECONCILE_INTERVAL_MS,
+    STASH_GC_INTERVAL_MS,
+    STASH_MAX_AGE_MS,
+    getDb,
+    worktrees,
+} from '@concerto/core';
 import { startServer } from './server';
 import { generateToken, writeDaemonInfo, clearDaemonInfo } from './auth';
 
@@ -26,10 +34,6 @@ async function main() {
     });
 
     const server = startServer({ port, token, startedAt });
-
-    const RECONCILE_INTERVAL_MS = 30_000;
-    const STASH_GC_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24h
-    const STASH_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30d
 
     const reconcileTimer = setInterval(() => {
         try {

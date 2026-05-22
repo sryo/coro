@@ -4,6 +4,7 @@ import { execFileSync } from 'child_process';
 import { nanoid } from 'nanoid';
 import type { WorktreeRecord, WorktreeStatus, WorktreeBoardMeta } from '@concerto/types';
 import { getDb } from './db';
+import { DIFF_BYTE_CAP } from './config';
 import { emitEvent } from './events';
 
 export type { WorktreeRecord, WorktreeStatus, WorktreeBoardMeta } from '@concerto/types';
@@ -253,8 +254,6 @@ export function worktreeStatus(cardId: string): WorktreeStatus | null {
         exists: true,
     };
 }
-
-const DIFF_BYTE_CAP = 1_000_000;
 
 export function worktreeDiff(cardId: string, against: 'base' | 'head' = 'base'): string {
     const wt = getWorktreeByCard(cardId);
