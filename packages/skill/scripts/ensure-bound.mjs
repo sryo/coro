@@ -5,15 +5,38 @@
 // Without --auto-bind, exits with code 3 and prints {reason: "unbound", repo_path, name}
 // so the calling skill can prompt the user before binding.
 
-import { discover, api, repoRoot } from './api-client.mjs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { execSync } from 'node:child_process';
+
+// Resolve @concerto/client from the sibling daemon install (skill ships standalone,
+// so we can't rely on node_modules lookup the way a packaged consumer would).
+const here = path.dirname(fileURLToPath(import.meta.url));
+const clientEntry = path.resolve(here, '..', '..', 'client', 'dist', 'index.js');
+const { DaemonClient } = await import(clientEntry);
+
+function repoRoot() {
+    try {
+        return execSync('git rev-parse --show-toplevel', { encoding: 'utf8' }).trim();
+    } catch {
+        console.error(JSON.stringify({ error: 'not in a git repo (run `git init` first)' }));
+        process.exit(1);
+    }
+}
 
 const autoBind = process.argv.includes('--auto-bind');
 const repo = repoRoot();
-const { port, token } = await discover();
-const client = api(port, token);
+const client = new DaemonClient();
 
 try {
-    const project = await client.get(`/projects/by-path?path=${encodeURIComponent(repo)}`);
+    await client.ensureRunning();
+} catch (err) {
+    console.error(JSON.stringify({ error: err?.message || String(err) }));
+    process.exit(1);
+}
+
+try {
+    const project = await client.request(`/projects/by-path?path=${encodeURIComponent(repo)}`);
     process.stdout.write(JSON.stringify({
         project_id: project.id,
         project_name: project.name,
@@ -21,8 +44,8 @@ try {
     }) + '\n');
     process.exit(0);
 } catch (err) {
-    if (err.status !== 404) {
-        console.error(JSON.stringify({ error: err.message }));
+    if (err?.status !== 404) {
+        console.error(JSON.stringify({ error: err?.message || String(err) }));
         process.exit(1);
     }
 }
@@ -35,7 +58,7 @@ if (!autoBind) {
     process.exit(3);
 }
 
-const project = await client.post('/projects', { repo_path: repo, name });
+const project = await client.request('/projects', { method: 'POST', body: { repo_path: repo, name } });
 process.stdout.write(JSON.stringify({
     project_id: project.id,
     project_name: project.name,

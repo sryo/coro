@@ -24,8 +24,7 @@ Multiple cards run in parallel without stepping on each other.
 
 ## Operating principles
 
-1. Run the daemon discovery script first (`scripts/discover-daemon.mjs`). It auto-spawns the daemon if down.
-2. Bind the repo (`scripts/ensure-bound.mjs`) if it's not already a known project.
+1. Bind the repo by running `scripts/ensure-bound.mjs`. It auto-spawns the daemon if down and resolves (or registers) the current repo as a project.
 3. Honor the state machine: on a 409 with `allowed[]`, retry once with `allowed[0]`. On a second failure, ask the user.
 4. Never auto-commit on behalf of the agent. The user owns git history.
 5. Don't reinvent: when a sibling verb exists, call it via `Skill(skill='concerto-<verb>')` rather than reimplementing.

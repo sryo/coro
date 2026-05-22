@@ -8,7 +8,7 @@
 4. If anything else → run `concerto daemon start` (or the bundled `concerto-daemon-start` script) and re-probe for up to 3 seconds.
 5. Still down → tell the user to check `concerto daemon logs`. Stop.
 
-The script `scripts/discover-daemon.mjs` does all of this and prints `{port, token}` on success.
+`scripts/ensure-bound.mjs` handles steps 1–4 transparently — it auto-spawns the daemon via `@concerto/client` if needed and exits with the project info on stdout.
 
 ## Project binding
 
