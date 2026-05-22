@@ -1,20 +1,30 @@
-// Server-side proxy from the dashboard to the daemon. The dashboard talks to
+// Server-side proxy from the dashboard to the daemon. The browser talks to
 // /api/proxy/...; this route forwards to http://localhost:<daemon-port>/...
 // with the bearer token from ~/.concerto/daemon.json. The token never reaches
 // the browser.
 //
-// SSE: streams the upstream response body through to the client untouched.
+// Non-SSE: delegates to DaemonClient.request via getServerClient(). SSE: pipes
+// the upstream body through untouched so EventSource sees frames as they
+// arrive. The proxy validates the target path stays under the daemon (no
+// path traversal, no absolute URLs).
 
 import { NextRequest } from 'next/server';
-import { daemonBase, daemonToken } from '@/lib/daemon';
+import { getServerClient } from '@/lib/server-api';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+function buildSubpath(parts: string[]): string | null {
+    if (parts.some((p) => p === '..' || p.startsWith('/') || p.includes('://'))) return null;
+    return '/' + parts.join('/');
+}
+
 async function forward(req: NextRequest, params: { path: string[] }): Promise<Response> {
-    const base = daemonBase();
-    const token = daemonToken();
-    if (!base || !token) {
+    const client = getServerClient();
+    let runtime;
+    try {
+        runtime = await client.ensureRunning({ spawn: false });
+    } catch {
         return Response.json({
             error: {
                 code: 'daemon_unavailable',
@@ -24,12 +34,16 @@ async function forward(req: NextRequest, params: { path: string[] }): Promise<Re
         }, { status: 503 });
     }
 
-    const subpath = '/' + params.path.join('/');
-    const queryString = req.nextUrl.search;
-    const url = base + subpath + queryString;
+    const subpath = buildSubpath(params.path);
+    if (subpath === null) {
+        return Response.json({
+            error: { code: 'bad_request', message: 'invalid proxy path' },
+        }, { status: 400 });
+    }
+    const url = runtime.base + subpath + req.nextUrl.search;
 
     const headers: Record<string, string> = {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${runtime.token}`,
     };
     const contentType = req.headers.get('content-type');
     if (contentType) headers['Content-Type'] = contentType;
