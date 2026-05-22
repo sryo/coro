@@ -9,6 +9,7 @@ import {
     getDb,
     worktrees,
 } from '@concerto/core';
+import { DaemonClient } from '@concerto/client';
 import { startServer } from './server';
 import { generateToken, writeDaemonInfo, clearDaemonInfo } from './auth';
 
@@ -27,10 +28,14 @@ async function main() {
     const token = generateToken();
     const startedAt = Date.now();
 
-    worktrees.configureMcp({
-        bridgeScript: mcpBridgeScript(),
-        daemonUrl: `http://localhost:${port}`,
-        daemonToken: token,
+    // The MCP bridge path is set on the env so DaemonClient.writeMcpConfig
+    // (called from the worktree-created hook) can find it without us shipping
+    // the path through core.
+    process.env.CONCERTO_MCP_BRIDGE = mcpBridgeScript();
+
+    const client = new DaemonClient({ base: `http://localhost:${port}`, token });
+    worktrees.onWorktreeCreated(({ worktreePath, cardId }) => {
+        void client.writeMcpConfig(worktreePath, cardId);
     });
 
     const server = startServer({ port, token, startedAt });

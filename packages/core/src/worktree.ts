@@ -9,6 +9,12 @@ import { emitEvent } from './events';
 
 export type { WorktreeRecord, WorktreeStatus, WorktreeBoardMeta } from '@concerto/types';
 
+// Optional hook fired after a worktree is created. Daemon uses this to drop a
+// .mcp.json into the worktree without core having to know what MCP is.
+export type WorktreeCreatedHook = (input: { worktreePath: string; cardId: string }) => void;
+let createHook: WorktreeCreatedHook | null = null;
+export function onWorktreeCreated(h: WorktreeCreatedHook | null): void { createHook = h; }
+
 function git(repoOrWorktree: string, args: string[]): string {
     return execFileSync('git', ['-C', repoOrWorktree, ...args], { encoding: 'utf8' }).trim();
 }
@@ -54,38 +60,6 @@ function buildBranchName(repoPath: string, slug: string, cardId: string): string
     return candidate;
 }
 
-// Optional: when set, createWorktree writes a .mcp.json wiring concerto.* tools
-// into each new worktree. Left unset, core stays importable without a daemon.
-export interface McpWiring {
-    bridgeScript: string;
-    daemonUrl: string;
-    daemonToken: string;
-}
-let mcpWiring: McpWiring | null = null;
-export function configureMcp(w: McpWiring | null): void { mcpWiring = w; }
-
-function writeMcpConfig(worktreePath: string, cardId: string): void {
-    if (!mcpWiring) return;
-    const config = {
-        mcpServers: {
-            concerto: {
-                command: 'node',
-                args: [mcpWiring.bridgeScript],
-                env: {
-                    CONCERTO_CARD_ID: cardId,
-                    CONCERTO_DAEMON_URL: mcpWiring.daemonUrl,
-                    CONCERTO_DAEMON_TOKEN: mcpWiring.daemonToken,
-                },
-            },
-        },
-    };
-    try {
-        fs.writeFileSync(path.join(worktreePath, '.mcp.json'), JSON.stringify(config, null, 2));
-    } catch {
-        // best-effort
-    }
-}
-
 export function getWorktreeByCard(cardId: string): WorktreeRecord | null {
     const row = getDb().prepare('SELECT * FROM worktrees WHERE card_id = ?').get(cardId) as WorktreeRecord | undefined;
     return row || null;
@@ -129,7 +103,7 @@ export function createWorktree(input: CreateWorktreeInput): WorktreeRecord {
         merge_conflict_at: null,
     };
 
-    writeMcpConfig(worktreePath, input.cardId);
+    try { createHook?.({ worktreePath, cardId: input.cardId }); } catch {}
 
     getDb().prepare(`
         INSERT INTO worktrees (id, card_id, path, branch, base_branch, base_sha, repo_path, state, last_seen_at, created_at)
