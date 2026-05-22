@@ -1,4 +1,5 @@
 import { nanoid } from 'nanoid';
+import type { Message } from '@concerto/types';
 import { getDb } from './db';
 import { emitEvent } from './events';
 import { getCard, type Card } from './cards';
@@ -8,18 +9,10 @@ import { buildSystemPrompt, hashSystemPrompt } from './claude/prompt';
 import { runClaude } from './claude/driver';
 import type { ClaudeEvent } from './claude/types';
 
-export interface MessageRow {
-    id: number;
-    conversation_id: string;
-    message_id: string;
-    turn_id: string;
-    role: 'user' | 'assistant' | 'tool_use' | 'tool_result' | 'system';
-    content_text: string | null;
-    content_json: string | null;
-    tool_name: string | null;
-    streaming_complete: number;
-    created_at: number;
-}
+// MessageRow is the persisted Message shape; alias kept for backward-compat
+// with existing core callers.
+export type MessageRow = Message;
+export type { Message } from '@concerto/types';
 
 interface ConversationRow {
     id: string;

@@ -1,5 +1,10 @@
 import { Hono } from 'hono';
-import { cards, projects, stages, controller, worktrees } from '@concerto/core';
+import { cards, projects, stages, controller, worktrees, emitEvent, recordCardEvent } from '@concerto/core';
+import type { Actor } from '@concerto/core';
+
+function parseActor(input: unknown, fallback: Actor): Actor {
+    return input === 'user' || input === 'agent' || input === 'system' ? input : fallback;
+}
 
 const router = new Hono();
 
@@ -8,6 +13,15 @@ router.get('/projects/:id/cards', (c) => {
     if (!project) return c.json({ error: { code: 'not_found', message: 'project not found' } }, 404);
     const stageId = c.req.query('stage') || undefined;
     return c.json(cards.listCards(project.id, stageId));
+});
+
+router.get('/projects/:id/board', (c) => {
+    const project = projects.getProject(c.req.param('id'));
+    if (!project) return c.json({ error: { code: 'not_found', message: 'project not found' } }, 404);
+    return c.json({
+        cards: cards.listCards(project.id),
+        worktree_meta: worktrees.getBoardMeta(project.id),
+    });
 });
 
 router.post('/projects/:id/cards', async (c) => {
@@ -56,7 +70,7 @@ router.delete('/cards/:id', (c) => {
         cards.deleteCard(id);
         return c.json({ ok: true });
     } catch (err: any) {
-        const allowed = stages.listStages(card.project_id).filter(s => s.kind === 'backlog').map(s => s.id);
+        const allowed = stages.filterByKind(stages.listStages(card.project_id), 'backlog').map(s => s.id);
         return c.json({
             error: {
                 code: 'invalid_state',
@@ -73,7 +87,7 @@ router.post('/cards/:id/transitions', async (c) => {
     if (!body?.to_stage_id) {
         return c.json({ error: { code: 'bad_request', message: 'to_stage_id required' } }, 400);
     }
-    const actor: controller.Actor = body.actor === 'agent' ? 'agent' : body.actor === 'system' ? 'system' : 'user';
+    const actor = parseActor(body.actor, 'user');
     const result = controller.transition({
         cardId: c.req.param('id'),
         toStageId: body.to_stage_id,
@@ -104,6 +118,48 @@ router.get('/cards/:id/diff', (c) => {
     const against = c.req.query('against') === 'head' ? 'head' : 'base';
     const diff = worktrees.worktreeDiff(c.req.param('id'), against);
     return c.text(diff, 200, { 'Content-Type': 'text/plain; charset=utf-8' });
+});
+
+router.post('/cards/:id/notes', async (c) => {
+    const body = await c.req.json().catch(() => null) as { content?: string; actor?: controller.Actor } | null;
+    const content = (body?.content || '').trim();
+    if (!content) return c.json({ error: { code: 'bad_request', message: 'content required' } }, 400);
+    const card = cards.getCard(c.req.param('id'));
+    if (!card) return c.json({ error: { code: 'not_found', message: 'card not found' } }, 404);
+    const actor = parseActor(body?.actor, 'agent');
+    const at = recordCardEvent({ cardId: card.id, projectId: card.project_id, kind: 'note', actor, payload: { content } });
+    emitEvent('card:note', { card_id: card.id, project_id: card.project_id, content, actor, at });
+    return c.json({ ok: true, at });
+});
+
+router.post('/cards/:id/merge', async (c) => {
+    const body = await c.req.json().catch(() => ({})) as {
+        strategy?: 'squash' | 'merge';
+        commit_message?: string;
+        actor?: controller.Actor;
+    };
+    const result = controller.merge({
+        cardId: c.req.param('id'),
+        strategy: body.strategy,
+        commitMessage: body.commit_message,
+        actor: body.actor,
+    });
+    if (!result.ok) {
+        const status =
+            result.code === 'card_not_found' || result.code === 'project_not_found' || result.code === 'stage_not_found'
+                ? 404
+                : 409;
+        return c.json({
+            error: {
+                code: result.code,
+                message: result.message,
+                hint: result.hint,
+                conflicts: result.conflicts,
+                allowed: result.allowed,
+            },
+        }, status);
+    }
+    return c.json({ card: result.card, merge: result.merge });
 });
 
 router.post('/cards/:id/abandon', async (c) => {

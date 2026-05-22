@@ -1,11 +1,16 @@
+import type { Actor } from '@concerto/types';
 import { getDb } from './db';
 import { getCard, type Card } from './cards';
-import { getStage, listStages, type Stage } from './stages';
+import { getStage, listStages, findByKind, type Stage } from './stages';
 import { getProject } from './projects';
-import { createWorktree, removeWorktree, getWorktreeByCard } from './worktree';
-import { emitEvent } from './events';
+import {
+    createWorktree, removeWorktree, getWorktreeByCard,
+    precheckMerge, performMerge, setMergeConflict,
+    type MergeStrategy,
+} from './worktree';
+import { emitEvent, recordCardEvent } from './events';
 
-export type Actor = 'user' | 'agent' | 'system';
+export type { Actor } from '@concerto/types';
 
 export interface TransitionInput {
     cardId: string;
@@ -140,21 +145,21 @@ export function transition(input: TransitionInput): TransitionResult {
     if (stampField) params.push(now);
     params.push(card.id);
 
-    db.prepare(`
-        UPDATE cards SET stage_id = ?, position = ?, updated_at = ? ${stampSql}
-        WHERE id = ?
-    `).run(...params);
-
-    db.prepare(`
-        INSERT INTO events (card_id, project_id, kind, actor, payload_json, created_at)
-        VALUES (?, ?, 'stage_change', ?, ?, ?)
-    `).run(
-        card.id,
-        card.project_id,
-        input.actor,
-        JSON.stringify({ from_stage_id: from.id, to_stage_id: to.id, from_kind: from.kind, to_kind: to.kind, reason: input.reason || null }),
-        now,
-    );
+    db.transaction(() => {
+        db.prepare(`
+            UPDATE cards SET stage_id = ?, position = ?, updated_at = ? ${stampSql}
+            WHERE id = ?
+        `).run(...params);
+        if (to.kind === 'done') setMergeConflict(card.id, null);
+        recordCardEvent({
+            cardId: card.id,
+            projectId: card.project_id,
+            kind: 'stage_change',
+            actor: input.actor,
+            payload: { from_stage_id: from.id, to_stage_id: to.id, from_kind: from.kind, to_kind: to.kind, reason: input.reason || null },
+            at: now,
+        });
+    })();
 
     emitEvent('card:stage_changed', {
         card_id: card.id,
@@ -172,6 +177,138 @@ export interface AbandonResult {
     worktree: { had_dirty_files: boolean; stashed_ref?: string };
 }
 
+export interface MergeInput {
+    cardId: string;
+    strategy?: MergeStrategy;
+    commitMessage?: string;
+    actor?: Actor;
+}
+
+export type MergeResult =
+    | { ok: true; card: Card; merge: { sha: string; strategy: MergeStrategy; already_merged: boolean } }
+    | { ok: false; code: MergeError; message: string; hint?: string; conflicts?: string[]; allowed?: string[] };
+
+export type MergeError =
+    | 'card_not_found'
+    | 'stage_not_found'
+    | 'project_not_found'
+    | 'no_worktree'
+    | 'merge_requires_done'
+    | 'no_archive_stage'
+    | 'conflict'
+    | 'merge_failed';
+
+export function merge(input: MergeInput): MergeResult {
+    const card = getCard(input.cardId);
+    if (!card) return { ok: false, code: 'card_not_found', message: 'card not found' };
+
+    const from = getStage(card.stage_id);
+    if (!from) return { ok: false, code: 'stage_not_found', message: 'current stage missing' };
+
+    if (from.kind !== 'done') {
+        return {
+            ok: false,
+            code: 'merge_requires_done',
+            message: `merge requires source kind=done, got ${from.kind}`,
+            hint: 'approve the card from Review first, then merge from Done',
+            allowed: transitionTargets(input.cardId, input.actor || 'user'),
+        };
+    }
+
+    const project = getProject(card.project_id);
+    if (!project) return { ok: false, code: 'project_not_found', message: 'project not found' };
+
+    const wt = getWorktreeByCard(card.id);
+    if (!wt) return { ok: false, code: 'no_worktree', message: 'card has no worktree to merge' };
+
+    const archive = findByKind(listStages(card.project_id), 'archive');
+    if (!archive) {
+        return {
+            ok: false,
+            code: 'no_archive_stage',
+            message: 'project has no archive stage configured',
+            hint: 'add an archive-kind stage in settings',
+        };
+    }
+
+    const strategy: MergeStrategy = input.strategy === 'merge' ? 'merge' : 'squash';
+
+    let pre;
+    try {
+        pre = precheckMerge(project.repo_path, project.base_branch, wt.branch);
+    } catch (err: any) {
+        return { ok: false, code: 'merge_failed', message: `precheck failed: ${err.message}` };
+    }
+    if (pre.conflicts.length > 0) {
+        setMergeConflict(card.id, Date.now());
+        return {
+            ok: false,
+            code: 'conflict',
+            message: 'merge conflict detected',
+            conflicts: pre.conflicts,
+            hint: 'resolve conflicts manually then retry',
+        };
+    }
+
+    const commitMessage = (input.commitMessage || card.title).trim() || card.title;
+
+    let result;
+    try {
+        result = performMerge(project.repo_path, project.base_branch, wt.branch, strategy, commitMessage, pre);
+    } catch (err: any) {
+        if (err.code === 'conflict') {
+            setMergeConflict(card.id, Date.now());
+            return { ok: false, code: 'conflict', message: 'merge conflict detected at write-tree' };
+        }
+        return { ok: false, code: 'merge_failed', message: err.message };
+    }
+
+    try {
+        removeWorktree(card.id, { stashDirty: false, state: 'merged' });
+    } catch {
+        // worktree cleanup is best-effort; merge already landed
+    }
+
+    const now = Date.now();
+    const db = getDb();
+    db.transaction(() => {
+        db.prepare(`
+            UPDATE cards
+            SET stage_id = ?, position = ?, merged_at = ?, branch_name = NULL, worktree_path = NULL, updated_at = ?
+            WHERE id = ?
+        `).run(archive.id, 0, now, now, card.id);
+        recordCardEvent({
+            cardId: card.id,
+            projectId: card.project_id,
+            kind: 'merge',
+            actor: input.actor || 'user',
+            payload: {
+                strategy,
+                merge_sha: result.mergeSha,
+                base_branch: project.base_branch,
+                already_merged: result.alreadyMerged,
+                from_stage_id: from.id,
+                to_stage_id: archive.id,
+            },
+            at: now,
+        });
+    })();
+
+    emitEvent('card:merged', {
+        card_id: card.id,
+        project_id: card.project_id,
+        merge_sha: result.mergeSha,
+        strategy,
+        already_merged: result.alreadyMerged,
+    });
+
+    return {
+        ok: true,
+        card: getCard(card.id)!,
+        merge: { sha: result.mergeSha, strategy, already_merged: result.alreadyMerged },
+    };
+}
+
 export function abandon(cardId: string, opts: { stashDirty?: boolean; actor?: Actor } = {}): AbandonResult | null {
     const card = getCard(cardId);
     if (!card) return null;
@@ -182,21 +319,21 @@ export function abandon(cardId: string, opts: { stashDirty?: boolean; actor?: Ac
         : { hadDirtyFiles: false, stashedRef: undefined };
 
     const now = Date.now();
-    getDb().prepare(`
-        UPDATE cards SET abandoned_at = ?, branch_name = NULL, worktree_path = NULL, updated_at = ?
-        WHERE id = ?
-    `).run(now, now, cardId);
-
-    getDb().prepare(`
-        INSERT INTO events (card_id, project_id, kind, actor, payload_json, created_at)
-        VALUES (?, ?, 'abandon', ?, ?, ?)
-    `).run(
-        cardId,
-        card.project_id,
-        opts.actor || 'user',
-        JSON.stringify({ stashed_ref: result.stashedRef || null, had_dirty_files: result.hadDirtyFiles }),
-        now,
-    );
+    const db = getDb();
+    db.transaction(() => {
+        db.prepare(`
+            UPDATE cards SET abandoned_at = ?, branch_name = NULL, worktree_path = NULL, updated_at = ?
+            WHERE id = ?
+        `).run(now, now, cardId);
+        recordCardEvent({
+            cardId,
+            projectId: card.project_id,
+            kind: 'abandon',
+            actor: opts.actor || 'user',
+            payload: { stashed_ref: result.stashedRef || null, had_dirty_files: result.hadDirtyFiles },
+            at: now,
+        });
+    })();
 
     emitEvent('card:abandoned', { card_id: cardId, project_id: card.project_id, stashed_ref: result.stashedRef });
 

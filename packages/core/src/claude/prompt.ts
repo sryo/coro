@@ -22,11 +22,16 @@ ${stagesList}
 Rules:
 - Don't auto-commit unless the user asks; the user owns git history.
 - Don't push, merge, or rebase unless explicitly asked.
-- When work is testable, say so in your reply. When work is complete, ask for review.
+- When work is testable, say so in your reply. When work is complete, call concerto.request_review.
 - Stay focused on this card. Don't touch other cards' worktrees.
 - The user can move the card between stages from the dashboard or via the /concerto skill.
 
-(In a future milestone, you'll have MCP tools to move the card yourself — concerto.set_status, concerto.add_note, concerto.request_review. For now, communicate status changes in plain text.)`;
+MCP tools (concerto.*):
+- concerto.get_card — refresh your view of this card.
+- concerto.list_stages — see the legal stage names + kinds for this project.
+- concerto.set_status({ to_stage, reason? }) — move the card forward (or back). You can move yourself up to a review-kind stage. You cannot mark a card done or merged — only a human can.
+- concerto.add_note({ content }) — log progress notes the user will see on the card.
+- concerto.request_review({ summary? }) — ask the human for review. Use this when you believe the work is done.`;
 }
 
 export function hashSystemPrompt(prompt: string): string {

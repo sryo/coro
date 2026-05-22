@@ -1,5 +1,8 @@
 import path from 'path';
 import os from 'os';
+import type { StageKind } from '@concerto/types';
+
+export type { StageKind } from '@concerto/types';
 
 export const CONCERTO_HOME = process.env.CONCERTO_HOME
     || path.join(os.homedir(), '.concerto');
@@ -20,5 +23,3 @@ export const DEFAULT_STAGES: ReadonlyArray<{ name: string; kind: StageKind }> = 
     { name: 'Done', kind: 'done' },
     { name: 'Merged', kind: 'archive' },
 ];
-
-export type StageKind = 'backlog' | 'ready' | 'active' | 'review' | 'done' | 'archive';

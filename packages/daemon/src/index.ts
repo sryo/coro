@@ -1,10 +1,14 @@
 import fs from 'fs';
 import path from 'path';
-import { CONCERTO_HOME, DEFAULT_API_PORT, getDb } from '@concerto/core';
+import { CONCERTO_HOME, DEFAULT_API_PORT, getDb, worktrees } from '@concerto/core';
 import { startServer } from './server';
 import { generateToken, writeDaemonInfo, clearDaemonInfo } from './auth';
 
 const PID_FILE = path.join(CONCERTO_HOME, 'daemon.pid');
+
+function mcpBridgeScript(): string {
+    return path.resolve(__dirname, '..', 'bin', 'concerto-mcp.mjs');
+}
 
 async function main() {
     fs.mkdirSync(CONCERTO_HOME, { recursive: true });
@@ -15,7 +19,40 @@ async function main() {
     const token = generateToken();
     const startedAt = Date.now();
 
+    worktrees.configureMcp({
+        bridgeScript: mcpBridgeScript(),
+        daemonUrl: `http://localhost:${port}`,
+        daemonToken: token,
+    });
+
     const server = startServer({ port, token, startedAt });
+
+    const RECONCILE_INTERVAL_MS = 30_000;
+    const STASH_GC_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24h
+    const STASH_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30d
+
+    const reconcileTimer = setInterval(() => {
+        try {
+            const result = worktrees.reconcile();
+            if (result.missing.length > 0) console.log(`[reconcile] flagged missing: ${result.missing.join(',')}`);
+            if (result.reactivated.length > 0) console.log(`[reconcile] reactivated: ${result.reactivated.join(',')}`);
+        } catch (err: any) {
+            console.error('[reconcile] failed:', err?.message || err);
+        }
+    }, RECONCILE_INTERVAL_MS);
+    reconcileTimer.unref?.();
+
+    const gcSweep = () => {
+        try {
+            const { deleted } = worktrees.pruneAbandonedStashes(STASH_MAX_AGE_MS);
+            if (deleted.length > 0) console.log(`[stash-gc] pruned ${deleted.length} ref(s)`);
+        } catch (err: any) {
+            console.error('[stash-gc] failed:', err?.message || err);
+        }
+    };
+    setImmediate(gcSweep);
+    const gcTimer = setInterval(gcSweep, STASH_GC_INTERVAL_MS);
+    gcTimer.unref?.();
 
     fs.writeFileSync(PID_FILE, String(process.pid));
     writeDaemonInfo({ port, token, pid: process.pid, started_at: startedAt });

@@ -147,4 +147,12 @@ const MIGRATIONS: ReadonlyArray<{ version: number; sql: string }> = [
             CREATE INDEX messages_conv ON messages(conversation_id, id);
         `,
     },
+    {
+        version: 4,
+        sql: `
+            ALTER TABLE worktrees ADD COLUMN dirty_files INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE worktrees ADD COLUMN behind INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE worktrees ADD COLUMN merge_conflict_at INTEGER;
+        `,
+    },
 ];

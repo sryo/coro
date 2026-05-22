@@ -13,5 +13,7 @@ export type { ClaudeEvent, ClaudeRunOptions, ClaudeRunResult } from './claude/ty
 export type { Project } from './projects';
 export type { Stage, StageInput } from './stages';
 export type { Card, CreateCardInput } from './cards';
-export type { WorktreeRecord, WorktreeStatus, CreateWorktreeInput } from './worktree';
+export type { Message, MessageRow } from './conversations';
+export type { WorktreeRecord, WorktreeStatus, WorktreeBoardMeta, CreateWorktreeInput } from './worktree';
 export type { TransitionInput, TransitionResult, TransitionError, Actor } from './controller';
+export type { ErrorResponse } from '@concerto/types';

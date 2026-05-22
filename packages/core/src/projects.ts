@@ -1,18 +1,10 @@
 import path from 'path';
 import { nanoid } from 'nanoid';
+import type { Project } from '@concerto/types';
 import { getDb } from './db';
 import { DEFAULT_STAGES } from './config';
 
-export interface Project {
-    id: string;
-    name: string;
-    repo_path: string;
-    base_branch: string;
-    default_model: string | null;
-    project_brief: string | null;
-    settings_json: string;
-    created_at: number;
-}
+export type { Project } from '@concerto/types';
 
 export interface CreateProjectInput {
     name?: string;

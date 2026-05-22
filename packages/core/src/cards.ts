@@ -1,30 +1,11 @@
 import { nanoid } from 'nanoid';
+import type { Card } from '@concerto/types';
 import { getDb } from './db';
 import { slugify } from './slug';
 import { getDefaultStage, getStage } from './stages';
 import { emitEvent } from './events';
 
-export interface Card {
-    id: string;
-    project_id: string;
-    slug: string;
-    title: string;
-    description: string | null;
-    stage_id: string;
-    branch_name: string | null;
-    worktree_path: string | null;
-    base_sha: string | null;
-    model_override: string | null;
-    position: number;
-    created_at: number;
-    updated_at: number;
-    started_at: number | null;
-    testing_at: number | null;
-    review_at: number | null;
-    done_at: number | null;
-    merged_at: number | null;
-    abandoned_at: number | null;
-}
+export type { Card } from '@concerto/types';
 
 export interface CreateCardInput {
     project_id: string;

@@ -1,8 +1,8 @@
-# Simple, bold screens — eleven principles
+# Simple, bold screens — thirteen principles
 
 > Bold isn't loud. Bold is what's left when you take everything else away.
 
-You earn impact by leaving things out, not piling things on. Eleven rules below. Each one is short on purpose.
+You earn impact by leaving things out, not piling things on. Thirteen rules below. Each one is short on purpose.
 
 ---
 
@@ -30,16 +30,16 @@ You earn impact by leaving things out, not piling things on. Eleven rules below.
 ## 4. Weight before colour
 
 **Rule.** Heavy type carries emphasis before colour does.
-**Why.** Bold reads on every screen, in every light, for every eye.
+**Why.** Bold reads on every screen, every light, every eye. Weight is for importance; colour is for kind.
 **Do** — bold the important word.
 **Don't** — colour a word red and call it emphasis.
 
-## 5. Colour is spice
+## 5. Colour does a job
 
-**Rule.** Mostly neutral. Accent only where something moves.
-**Why.** Limit the colour and the colour you keep does more work.
-**Do** — save the brand colour for the button that matters.
-**Don't** — paint the whole page in the brand colour.
+**Rule.** A small palette, each colour with a role. Used flat. Used big.
+**Why.** Commit to a colour and it carries meaning. Wash it down and it carries nothing.
+**Do** — flood the sidebar, fill the section header, paint the status pill.
+**Don't** — gradients, tints, or 60% opacity to take the edge off.
 
 ## 6. Plain words, verbs first
 
@@ -82,6 +82,20 @@ You earn impact by leaving things out, not piling things on. Eleven rules below.
 **Why.** Simple isn't a starting point. It's what's left after the third edit.
 **Do** — ship the version you're slightly nervous is too sparse.
 **Don't** — keep the box, the badge, the help text, and the tooltip "just in case".
+
+## 12. Serve the task, not the app
+
+**Rule.** Cut UI that exists for the app's sake, not the user's.
+**Why.** Tabs, breadcrumbs, toolbars, account menus, settings gears — that's the app talking to itself. The user came to do one thing; let that thing be the page.
+**Do** — push the work to the centre; tuck housekeeping into a corner or behind a key.
+**Don't** — wrap every screen in a header, sidebar, and footer "for consistency".
+
+## 13. The output is the input
+
+**Rule.** Let the user act on the thing itself.
+**Why.** A lot of chrome exists because the content isn't touchable. If the title renames on click and the card drags to move, the screen needs less furniture around it.
+**Do** — make the content the interaction surface; reveal controls on hover or focus.
+**Don't** — wrap every object in a toolbar in case the user wants to do something.
 
 ---
 
@@ -128,9 +142,9 @@ The principles above apply to icons too. The specifics:
 
 ---
 
-## The one idea behind all eleven
+## The one idea behind all thirteen
 
 Simple and bold sound opposed. They aren't.
 **Simple** is fewer things on the screen.
-**Bold** is the one thing left being unmistakable.
+**Bold** is the one thing left being unmistakable — a headline, a number, a wall of colour.
 You can't have the second without the first.

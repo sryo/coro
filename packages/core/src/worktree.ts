@@ -2,33 +2,11 @@ import path from 'path';
 import fs from 'fs';
 import { execFileSync } from 'child_process';
 import { nanoid } from 'nanoid';
+import type { WorktreeRecord, WorktreeStatus, WorktreeBoardMeta } from '@concerto/types';
 import { getDb } from './db';
 import { emitEvent } from './events';
 
-export interface WorktreeRecord {
-    id: string;
-    card_id: string;
-    path: string;
-    branch: string;
-    base_branch: string;
-    base_sha: string;
-    repo_path: string;
-    state: 'active' | 'merged' | 'abandoned' | 'missing';
-    last_seen_at: number;
-    created_at: number;
-}
-
-export interface WorktreeStatus {
-    path: string;
-    branch: string;
-    base_branch: string;
-    base_sha: string;
-    ahead: number;
-    behind: number;
-    dirty_files: number;
-    last_commit: { sha: string; subject: string; iso: string } | null;
-    exists: boolean;
-}
+export type { WorktreeRecord, WorktreeStatus, WorktreeBoardMeta } from '@concerto/types';
 
 function git(repoOrWorktree: string, args: string[]): string {
     return execFileSync('git', ['-C', repoOrWorktree, ...args], { encoding: 'utf8' }).trim();
@@ -36,6 +14,22 @@ function git(repoOrWorktree: string, args: string[]): string {
 
 function gitSafe(repoOrWorktree: string, args: string[]): string | null {
     try { return git(repoOrWorktree, args); } catch { return null; }
+}
+
+function gitWithOutput(
+    repoOrWorktree: string,
+    args: string[],
+): { stdout: string; stderr: string; status: number } {
+    try {
+        const stdout = execFileSync('git', ['-C', repoOrWorktree, ...args], { encoding: 'utf8' });
+        return { stdout, stderr: '', status: 0 };
+    } catch (err: any) {
+        return {
+            stdout: err.stdout?.toString() || '',
+            stderr: err.stderr?.toString() || '',
+            status: typeof err.status === 'number' ? err.status : 1,
+        };
+    }
 }
 
 function gitCommonDir(repoPath: string): string {
@@ -57,6 +51,38 @@ function buildBranchName(repoPath: string, slug: string, cardId: string): string
         if (n > 99) throw new Error('could not allocate unique branch name');
     }
     return candidate;
+}
+
+// Optional: when set, createWorktree writes a .mcp.json wiring concerto.* tools
+// into each new worktree. Left unset, core stays importable without a daemon.
+export interface McpWiring {
+    bridgeScript: string;
+    daemonUrl: string;
+    daemonToken: string;
+}
+let mcpWiring: McpWiring | null = null;
+export function configureMcp(w: McpWiring | null): void { mcpWiring = w; }
+
+function writeMcpConfig(worktreePath: string, cardId: string): void {
+    if (!mcpWiring) return;
+    const config = {
+        mcpServers: {
+            concerto: {
+                command: 'node',
+                args: [mcpWiring.bridgeScript],
+                env: {
+                    CONCERTO_CARD_ID: cardId,
+                    CONCERTO_DAEMON_URL: mcpWiring.daemonUrl,
+                    CONCERTO_DAEMON_TOKEN: mcpWiring.daemonToken,
+                },
+            },
+        },
+    };
+    try {
+        fs.writeFileSync(path.join(worktreePath, '.mcp.json'), JSON.stringify(config, null, 2));
+    } catch {
+        // best-effort
+    }
 }
 
 export function getWorktreeByCard(cardId: string): WorktreeRecord | null {
@@ -97,7 +123,12 @@ export function createWorktree(input: CreateWorktreeInput): WorktreeRecord {
         state: 'active',
         last_seen_at: now,
         created_at: now,
+        dirty_files: 0,
+        behind: 0,
+        merge_conflict_at: null,
     };
+
+    writeMcpConfig(worktreePath, input.cardId);
 
     getDb().prepare(`
         INSERT INTO worktrees (id, card_id, path, branch, base_branch, base_sha, repo_path, state, last_seen_at, created_at)
@@ -243,6 +274,144 @@ export function worktreeDiff(cardId: string, against: 'base' | 'head' = 'base'):
     }
 }
 
+export type MergeStrategy = 'squash' | 'merge';
+
+export interface MergePrecheck {
+    conflicts: string[];
+    baseSha: string;
+    branchSha: string;
+    alreadyMerged: boolean;
+}
+
+export function precheckMerge(repoPath: string, baseBranch: string, branch: string): MergePrecheck {
+    const baseSha = git(repoPath, ['rev-parse', baseBranch]);
+    const branchSha = git(repoPath, ['rev-parse', branch]);
+    const ancestry = gitWithOutput(repoPath, ['merge-base', '--is-ancestor', branch, baseBranch]);
+    const alreadyMerged = ancestry.status === 0;
+    if (alreadyMerged) return { conflicts: [], baseSha, branchSha, alreadyMerged };
+
+    const res = gitWithOutput(repoPath, [
+        'merge-tree', '--write-tree', '--name-only', '--no-messages', baseBranch, branch,
+    ]);
+    if (res.status === 0) return { conflicts: [], baseSha, branchSha, alreadyMerged: false };
+    const lines = res.stdout.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
+    // First line of merge-tree output is the tree OID; remaining lines are conflicted paths.
+    const conflicts = lines.slice(1);
+    return { conflicts, baseSha, branchSha, alreadyMerged: false };
+}
+
+export interface PerformMergeResult {
+    mergeSha: string;
+    treeSha: string;
+    alreadyMerged: boolean;
+}
+
+export function performMerge(
+    repoPath: string,
+    baseBranch: string,
+    branch: string,
+    strategy: MergeStrategy,
+    commitMessage: string,
+    precheck?: MergePrecheck,
+): PerformMergeResult {
+    const baseSha = precheck?.baseSha ?? git(repoPath, ['rev-parse', baseBranch]);
+    const branchSha = precheck?.branchSha ?? git(repoPath, ['rev-parse', branch]);
+    const alreadyMerged = precheck
+        ? precheck.alreadyMerged
+        : gitWithOutput(repoPath, ['merge-base', '--is-ancestor', branch, baseBranch]).status === 0;
+
+    if (alreadyMerged) {
+        return { mergeSha: baseSha, treeSha: git(repoPath, ['rev-parse', `${baseBranch}^{tree}`]), alreadyMerged: true };
+    }
+
+    const treeRes = gitWithOutput(repoPath, [
+        'merge-tree', '--write-tree', '--no-messages', baseBranch, branch,
+    ]);
+    if (treeRes.status !== 0) {
+        throw Object.assign(new Error('merge-tree reported conflicts'), {
+            code: 'conflict',
+            stdout: treeRes.stdout,
+        });
+    }
+    const treeSha = treeRes.stdout.split('\n')[0]?.trim();
+    if (!treeSha) throw new Error('merge-tree produced no tree OID');
+
+    const parentArgs = strategy === 'squash'
+        ? ['-p', baseSha]
+        : ['-p', baseSha, '-p', branchSha];
+    const mergeSha = git(repoPath, ['commit-tree', treeSha, ...parentArgs, '-m', commitMessage]);
+
+    // Compare-and-swap on baseSha — if base moved since precheck, this fails and the merge aborts.
+    git(repoPath, ['update-ref', `refs/heads/${baseBranch}`, mergeSha, baseSha]);
+
+    return { mergeSha, treeSha, alreadyMerged: false };
+}
+
+export function pruneAbandonedStashes(maxAgeMs: number): { deleted: { repo: string; ref: string }[] } {
+    const db = getDb();
+    const repos = db.prepare('SELECT DISTINCT repo_path FROM worktrees').all() as { repo_path: string }[];
+    const deleted: { repo: string; ref: string }[] = [];
+    const cutoffSec = Math.floor((Date.now() - maxAgeMs) / 1000);
+
+    for (const { repo_path } of repos) {
+        const listing = gitWithOutput(repo_path, [
+            'for-each-ref',
+            '--format=%(refname) %(committerdate:unix)',
+            'refs/concerto-abandoned/',
+        ]);
+        if (listing.status !== 0) continue;
+        for (const line of listing.stdout.split('\n')) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            const [ref, tsStr] = trimmed.split(/\s+/);
+            const ts = parseInt(tsStr, 10);
+            if (!ref || !Number.isFinite(ts)) continue;
+            if (ts >= cutoffSec) continue;
+            const res = gitWithOutput(repo_path, ['update-ref', '-d', ref]);
+            if (res.status === 0) deleted.push({ repo: repo_path, ref });
+        }
+    }
+    return { deleted };
+}
+
+export function refreshWorktreeMetrics(cardId: string): void {
+    const wt = getWorktreeByCard(cardId);
+    if (!wt || wt.state !== 'active') return;
+    if (!fs.existsSync(wt.path)) return;
+    const dirty = countDirtyFiles(wt.path);
+    let behind = 0;
+    const counts = gitSafe(wt.path, ['rev-list', '--left-right', '--count', `${wt.base_branch}...HEAD`]);
+    if (counts) {
+        const [b] = counts.split('\t').map((n) => parseInt(n, 10));
+        behind = b || 0;
+    }
+    if (dirty === wt.dirty_files && behind === wt.behind) return;
+    getDb().prepare('UPDATE worktrees SET dirty_files = ?, behind = ? WHERE id = ?')
+        .run(dirty, behind, wt.id);
+}
+
+export function setMergeConflict(cardId: string, at: number | null): void {
+    getDb().prepare('UPDATE worktrees SET merge_conflict_at = ? WHERE card_id = ?').run(at, cardId);
+}
+
+export function getBoardMeta(projectId: string): Record<string, WorktreeBoardMeta> {
+    const rows = getDb().prepare(`
+        SELECT card_id, state, dirty_files, behind, merge_conflict_at FROM worktrees WHERE card_id IN (
+            SELECT id FROM cards WHERE project_id = ?
+        )
+    `).all(projectId) as ({ card_id: string } & WorktreeBoardMeta)[];
+    const out: Record<string, WorktreeBoardMeta> = {};
+    for (const r of rows) {
+        out[r.card_id] = {
+            state: r.state,
+            dirty_files: r.dirty_files,
+            behind: r.behind,
+            merge_conflict_at: r.merge_conflict_at,
+        };
+    }
+    return out;
+}
+
 export function reconcile(): { missing: string[]; reactivated: string[] } {
     const db = getDb();
     const active = db.prepare("SELECT * FROM worktrees WHERE state = 'active'").all() as WorktreeRecord[];
@@ -257,6 +426,7 @@ export function reconcile(): { missing: string[]; reactivated: string[] } {
         }
         db.prepare('UPDATE worktrees SET last_seen_at = ? WHERE id = ?')
             .run(Date.now(), wt.id);
+        try { refreshWorktreeMetrics(wt.card_id); } catch {}
     }
     // also resurrect any 'missing' rows whose paths are back
     const missingRows = db.prepare("SELECT * FROM worktrees WHERE state = 'missing'").all() as WorktreeRecord[];

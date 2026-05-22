@@ -1,15 +1,8 @@
 import { nanoid } from 'nanoid';
+import type { Stage, StageKind } from '@concerto/types';
 import { getDb } from './db';
-import type { StageKind } from './config';
 
-export interface Stage {
-    id: string;
-    project_id: string;
-    name: string;
-    position: number;
-    kind: StageKind;
-    created_at: number;
-}
+export type { Stage, StageKind } from '@concerto/types';
 
 export interface StageInput {
     id?: string;
@@ -42,9 +35,16 @@ export function getStageByName(projectId: string, name: string): Stage | null {
 }
 
 export function getDefaultStage(projectId: string): Stage {
-    const stages = listStages(projectId);
-    const backlog = stages.find(s => s.kind === 'backlog');
-    return backlog || stages[0];
+    const all = listStages(projectId);
+    return findByKind(all, 'backlog') || all[0];
+}
+
+export function findByKind(stages: Stage[], kind: StageKind): Stage | null {
+    return stages.find((s) => s.kind === kind) || null;
+}
+
+export function filterByKind(stages: Stage[], kind: StageKind): Stage[] {
+    return stages.filter((s) => s.kind === kind);
 }
 
 /**

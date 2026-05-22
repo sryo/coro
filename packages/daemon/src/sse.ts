@@ -19,6 +19,24 @@ export function removeSSEClient(res: http.ServerResponse): void {
     }
 }
 
+export function attachSSEStream(
+    res: http.ServerResponse,
+    scope: { cardId?: string; projectId?: string },
+): void {
+    res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+    });
+    const greeting = scope.cardId
+        ? { card_id: scope.cardId, timestamp: Date.now() }
+        : { project_id: scope.projectId, timestamp: Date.now() };
+    res.write(`event: connected\ndata: ${JSON.stringify(greeting)}\n\n`);
+    addSSEClient(res, scope);
+    res.on('close', () => removeSSEClient(res));
+}
+
 function broadcast(event: string, data: any): void {
     const payload = `event: ${event}\ndata: ${JSON.stringify({ type: event, timestamp: Date.now(), ...data })}\n\n`;
     for (const client of clients) {

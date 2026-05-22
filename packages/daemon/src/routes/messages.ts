@@ -1,8 +1,8 @@
 import http from 'http';
 import { Hono } from 'hono';
 import { RESPONSE_ALREADY_SENT } from '@hono/node-server/utils/response';
-import { conversations, cards } from '@concerto/core';
-import { addSSEClient, removeSSEClient } from '../sse';
+import { conversations, cards, projects } from '@concerto/core';
+import { attachSSEStream } from '../sse';
 
 const router = new Hono();
 
@@ -37,21 +37,19 @@ router.get('/cards/:id/messages', (c) => {
     return c.json(conversations.listMessages(card.id, sinceId, limit));
 });
 
+router.get('/projects/:id/stream', (c) => {
+    const project = projects.getProject(c.req.param('id'));
+    if (!project) return c.json({ error: { code: 'not_found', message: 'project not found' } }, 404);
+    const nodeRes = (c.env as { outgoing: http.ServerResponse }).outgoing;
+    attachSSEStream(nodeRes, { projectId: project.id });
+    return RESPONSE_ALREADY_SENT;
+});
+
 router.get('/cards/:id/stream', (c) => {
     const card = cards.getCard(c.req.param('id'));
     if (!card) return c.json({ error: { code: 'not_found', message: 'card not found' } }, 404);
-
     const nodeRes = (c.env as { outgoing: http.ServerResponse }).outgoing;
-    nodeRes.writeHead(200, {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        'Access-Control-Allow-Origin': '*',
-    });
-    nodeRes.write(`event: connected\ndata: ${JSON.stringify({ card_id: card.id, timestamp: Date.now() })}\n\n`);
-    addSSEClient(nodeRes, { cardId: card.id });
-    nodeRes.on('close', () => removeSSEClient(nodeRes));
-
+    attachSSEStream(nodeRes, { cardId: card.id });
     return RESPONSE_ALREADY_SENT;
 });
 
