@@ -5,14 +5,16 @@ import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import type { Card, Stage } from '@coro/types';
 import { Button } from '@/components/ui/button';
+import { StageSelect } from '@/components/stage-select';
 
 interface Props {
     card: Card;
     stages: Stage[];
 }
 
-export function CardActions({ card, stages }: Props) {
+export function CardActions({ card: initialCard, stages }: Props) {
     const router = useRouter();
+    const [card, setCard] = useState<Card>(initialCard);
     const [busy, setBusy] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [notice, setNotice] = useState<string | null>(null);
@@ -27,7 +29,13 @@ export function CardActions({ card, stages }: Props) {
     const hasWorktree = !!card.worktree_path;
     const inReview = currentStage?.kind === 'review';
     const inDone = currentStage?.kind === 'done';
+    const inBacklog = currentStage?.kind === 'backlog';
     const archived = currentStage?.kind === 'archive' || !!card.abandoned_at;
+    const statusLine = inReview
+        ? 'Move it forward when reviewed.'
+        : inDone
+            ? 'Run /coro-merge or click Merge to land it.'
+            : null;
 
     async function performMerge() {
         setBusy('merge');
@@ -67,87 +75,112 @@ export function CardActions({ card, stages }: Props) {
         }
     }
 
-    if (archived) {
-        return (
-            <section>
-                <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)] mb-2">Actions</h2>
-                <p className="text-xs text-[var(--muted-foreground)]">
-                    {card.abandoned_at ? 'Card abandoned.' : 'Card merged.'} No further actions.
-                </p>
-            </section>
-        );
+    async function performDelete() {
+        if (!confirm('Delete this card? This cannot be undone.')) return;
+        setBusy('delete');
+        setError(null);
+        try {
+            await api.delete(`/cards/${card.id}`);
+            router.push(`/p/${card.project_id}`);
+        } catch (err: any) {
+            setError(err.body?.error?.message || err.message);
+            setBusy(null);
+        }
     }
 
     return (
-        <section>
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)] mb-2">Actions</h2>
-            <div className="flex flex-wrap gap-2">
-                {inDone && (
-                    <Button
-                        size="sm"
-                        disabled={!!busy}
-                        onClick={() => setMergeOpen((o) => !o)}
-                    >
-                        {mergeOpen ? 'Cancel merge' : 'Merge into base'}
-                    </Button>
-                )}
-                {inReview && doneStage && (
-                    <Button
-                        size="sm"
-                        disabled={!!busy}
-                        onClick={() =>
-                            run('approve', () =>
-                                api.post(`/cards/${card.id}/transitions`, {
-                                    to_stage_id: doneStage.id,
-                                    actor: 'user',
-                                    reason: 'approved from review',
-                                }),
-                            )
-                        }
-                    >
-                        {busy === 'approve' ? 'Approving…' : 'Approve → Done'}
-                    </Button>
-                )}
-                {inReview && inProgressStage && (
-                    <Button
-                        size="sm"
-                        variant="subtle"
-                        disabled={!!busy}
-                        onClick={() =>
-                            run('send back', () =>
-                                api.post(`/cards/${card.id}/transitions`, {
-                                    to_stage_id: inProgressStage.id,
-                                    actor: 'user',
-                                    reason: 'sent back from review',
-                                }),
-                            )
-                        }
-                    >
-                        {busy === 'send back' ? 'Sending…' : 'Send back to In Progress'}
-                    </Button>
-                )}
-                {hasWorktree && (
-                    <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={!!busy}
-                        onClick={() => run('interrupt', () => api.post(`/cards/${card.id}/interrupt`))}
-                    >
-                        {busy === 'interrupt' ? '…' : 'Interrupt'}
-                    </Button>
-                )}
-                <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={!!busy}
-                    onClick={() => {
-                        if (!confirm('Abandon this card? Dirty work will be stashed.')) return;
-                        run('abandon', () => api.post(`/cards/${card.id}/abandon`, { stash_dirty: true }));
-                    }}
-                >
-                    {busy === 'abandon' ? 'Abandoning…' : 'Abandon'}
-                </Button>
-            </div>
+        <section className="space-y-4">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">Actions</h2>
+
+            <StageSelect card={card} stages={stages} onUpdated={setCard} />
+            {statusLine && (
+                <p className="text-xs text-[var(--muted-foreground)]">{statusLine}</p>
+            )}
+
+            {archived ? (
+                <p className="text-xs text-[var(--muted-foreground)]">
+                    {card.abandoned_at ? 'Card abandoned.' : 'Card merged.'} No further actions.
+                </p>
+            ) : (
+                <div className="flex flex-wrap gap-2">
+                    {inDone && (
+                        <Button
+                            size="sm"
+                            disabled={!!busy}
+                            onClick={() => setMergeOpen((o) => !o)}
+                        >
+                            {mergeOpen ? 'Cancel merge' : 'Merge into base'}
+                        </Button>
+                    )}
+                    {inReview && doneStage && (
+                        <Button
+                            size="sm"
+                            disabled={!!busy}
+                            onClick={() =>
+                                run('approve', () =>
+                                    api.post(`/cards/${card.id}/transitions`, {
+                                        to_stage_id: doneStage.id,
+                                        actor: 'user',
+                                        reason: 'approved from review',
+                                    }),
+                                )
+                            }
+                        >
+                            {busy === 'approve' ? 'Approving…' : 'Approve → Done'}
+                        </Button>
+                    )}
+                    {inReview && inProgressStage && (
+                        <Button
+                            size="sm"
+                            variant="subtle"
+                            disabled={!!busy}
+                            onClick={() =>
+                                run('send back', () =>
+                                    api.post(`/cards/${card.id}/transitions`, {
+                                        to_stage_id: inProgressStage.id,
+                                        actor: 'user',
+                                        reason: 'sent back from review',
+                                    }),
+                                )
+                            }
+                        >
+                            {busy === 'send back' ? 'Sending…' : 'Send back to In Progress'}
+                        </Button>
+                    )}
+                    {hasWorktree && (
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={!!busy}
+                            onClick={() => run('interrupt', () => api.post(`/cards/${card.id}/interrupt`))}
+                        >
+                            {busy === 'interrupt' ? '…' : 'Interrupt'}
+                        </Button>
+                    )}
+                    {inBacklog ? (
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={!!busy}
+                            onClick={performDelete}
+                        >
+                            {busy === 'delete' ? 'Deleting…' : 'Delete'}
+                        </Button>
+                    ) : (
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={!!busy}
+                            onClick={() => {
+                                if (!confirm('Abandon this card? Dirty work will be stashed.')) return;
+                                run('abandon', () => api.post(`/cards/${card.id}/abandon`, { stash_dirty: true }));
+                            }}
+                        >
+                            {busy === 'abandon' ? 'Abandoning…' : 'Abandon'}
+                        </Button>
+                    )}
+                </div>
+            )}
 
             {mergeOpen && inDone && (
                 <div className="mt-4 space-y-3 rounded-md border border-[var(--border)] p-3">
@@ -181,8 +214,8 @@ export function CardActions({ card, stages }: Props) {
                 </div>
             )}
 
-            {error && <p className="mt-2 text-xs text-[var(--muted-foreground)]">{error}</p>}
-            {notice && !error && <p className="mt-2 text-xs text-[var(--muted-foreground)]">{notice}</p>}
+            {error && <p className="text-xs text-[var(--muted-foreground)]">{error}</p>}
+            {notice && !error && <p className="text-xs text-[var(--muted-foreground)]">{notice}</p>}
         </section>
     );
 }

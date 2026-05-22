@@ -4,7 +4,6 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import type { Card, Stage, WorktreeStatus } from '@coro/types';
-import { StageSelect } from '@/components/stage-select';
 import { TimeAgo } from '@/components/time-ago';
 import { InlineText } from '@/components/inline-edit';
 
@@ -16,12 +15,7 @@ interface Props {
 
 export function CardDetailHeader({ card: initialCard, stages, worktree }: Props) {
     const [card, setCard] = useState<Card>(initialCard);
-    const currentStage = stages.find((s) => s.id === card.stage_id);
-    const statusLine = currentStage?.kind === 'review'
-        ? 'Move it forward when reviewed.'
-        : currentStage?.kind === 'done'
-            ? 'Run /coro-merge to land it.'
-            : null;
+    void stages;
 
     async function renameTitle(title: string) {
         const updated = await api.patch<Card>(`/cards/${card.id}`, { title });
@@ -33,13 +27,6 @@ export function CardDetailHeader({ card: initialCard, stages, worktree }: Props)
             <h1 className="text-3xl font-bold leading-tight">
                 <InlineText value={card.title} placeholder="Card title" onSubmit={renameTitle} />
             </h1>
-
-            <div className="space-y-3">
-                <StageSelect card={card} stages={stages} onUpdated={setCard} />
-                {statusLine && (
-                    <p className="text-xs text-[var(--muted-foreground)]">{statusLine}</p>
-                )}
-            </div>
 
             {card.description && (
                 <p className="text-sm whitespace-pre-wrap leading-relaxed max-w-[70ch]">{card.description}</p>
