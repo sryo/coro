@@ -2,10 +2,33 @@ import { nanoid } from 'nanoid';
 import type { Card } from '@concerto/types';
 import { getDb } from './db';
 import { slugify } from './slug';
-import { getDefaultStage, getStage } from './stages';
+import { getDefaultStage, getStage, listStages, filterByKind } from './stages';
 import { emitEvent } from './events';
 
 export type { Card } from '@concerto/types';
+
+export type CanDeleteResult =
+    | { ok: true }
+    | { ok: false; reason: string; allowed: string[] };
+
+/**
+ * Check whether a card may be deleted. Cards outside backlog kind stages must
+ * go through abandon instead (so their worktree is dealt with). Returns the
+ * list of legal backlog stage ids so callers can hint where to move first.
+ */
+export function canDelete(cardId: string): CanDeleteResult {
+    const card = getCard(cardId);
+    if (!card) return { ok: false, reason: 'card not found', allowed: [] };
+    const stage = getStage(card.stage_id);
+    const projectStages = listStages(card.project_id);
+    const allowed = filterByKind(projectStages, 'backlog').map((s) => s.id);
+    if (!stage || stage.kind === 'backlog') return { ok: true };
+    return {
+        ok: false,
+        reason: 'cannot delete card outside backlog; use abandon instead',
+        allowed,
+    };
+}
 
 export interface CreateCardInput {
     project_id: string;
@@ -96,9 +119,12 @@ export function updateCard(
 export function deleteCard(id: string): boolean {
     const card = getCard(id);
     if (!card) return false;
-    const stage = getStage(card.stage_id);
-    if (stage && stage.kind !== 'backlog') {
-        throw new Error('cannot delete card outside backlog; use abandon instead');
+    const check = canDelete(id);
+    if (!check.ok) {
+        throw Object.assign(new Error(check.reason), {
+            code: 'invalid_state',
+            allowed: check.allowed,
+        });
     }
     getDb().prepare('DELETE FROM cards WHERE id = ?').run(id);
     emitEvent('card:deleted', { card_id: id, project_id: card.project_id });

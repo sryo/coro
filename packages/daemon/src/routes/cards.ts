@@ -1,6 +1,5 @@
 import { Hono } from 'hono';
-import { cards, projects, stages, controller, worktrees, createCardEvent } from '@concerto/core';
-import type { Actor } from '@concerto/core';
+import { cards, projects, controller, worktrees, createCardEvent } from '@concerto/core';
 import { httpError, errorStatus, parseJsonBody } from './_helpers';
 import {
     createCardBody,
@@ -10,10 +9,6 @@ import {
     mergeBody,
     abandonBody,
 } from './schemas';
-
-function parseActor(input: unknown, fallback: Actor): Actor {
-    return input === 'user' || input === 'agent' || input === 'system' ? input : fallback;
-}
 
 const router = new Hono();
 
@@ -69,25 +64,25 @@ router.patch('/cards/:id', async (c) => {
 
 router.delete('/cards/:id', (c) => {
     const id = c.req.param('id');
-    const card = cards.getCard(id);
-    if (!card) return httpError(c, 404, 'not_found', 'card not found');
-    try {
-        cards.deleteCard(id);
-        return c.json({ ok: true });
-    } catch (err: any) {
-        const allowed = stages.filterByKind(stages.listStages(card.project_id), 'backlog').map(s => s.id);
-        return httpError(c, 409, 'invalid_state', err.message, {
+    const check = cards.canDelete(id);
+    if (!check.ok) {
+        if (check.allowed.length === 0 && check.reason === 'card not found') {
+            return httpError(c, 404, 'not_found', 'card not found');
+        }
+        return httpError(c, 409, 'invalid_state', check.reason, {
             hint: 'move the card to a backlog stage first, or use POST /cards/:id/abandon',
-            allowed,
+            allowed: check.allowed,
         });
     }
+    cards.deleteCard(id);
+    return c.json({ ok: true });
 });
 
 router.post('/cards/:id/transitions', async (c) => {
     const parsed = await parseJsonBody(c, transitionBody);
     if (!parsed.ok) return httpError(c, 400, 'bad_request', parsed.message);
     const body = parsed.data;
-    const actor = parseActor(body.actor, 'user');
+    const actor = controller.parseActor(body.actor, 'user');
     const result = controller.transition({
         cardId: c.req.param('id'),
         toStageId: body.to_stage_id,
@@ -121,7 +116,7 @@ router.post('/cards/:id/notes', async (c) => {
     const body = parsed.data;
     const card = cards.getCard(c.req.param('id'));
     if (!card) return httpError(c, 404, 'not_found', 'card not found');
-    const actor = parseActor(body.actor, 'agent');
+    const actor = controller.parseActor(body.actor, 'agent');
     const at = createCardEvent({
         cardId: card.id,
         projectId: card.project_id,

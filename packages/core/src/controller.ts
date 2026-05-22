@@ -1,4 +1,4 @@
-import type { Actor } from '@concerto/types';
+import type { Actor, StageKind } from '@concerto/types';
 import { getDb } from './db';
 import { getCard, type Card } from './cards';
 import { getStage, listStages, findByKind, type Stage } from './stages';
@@ -11,6 +11,26 @@ import {
 import { createCardEvent } from './events';
 
 export type { Actor } from '@concerto/types';
+
+/**
+ * Parse an unknown actor field into the typed Actor union, falling back to a
+ * default. Routes used to inline this; centralizing it keeps the wire shape
+ * decision in one place.
+ */
+export function parseActor(input: unknown, fallback: Actor): Actor {
+    return input === 'user' || input === 'agent' || input === 'system' ? input : fallback;
+}
+
+/**
+ * Stage kinds that require going through a dedicated endpoint rather than a
+ * direct transition. Today that's archive (POST /cards/:id/merge); extend the
+ * set here when new gated kinds appear.
+ */
+const ENDPOINT_KINDS: ReadonlySet<StageKind> = new Set(['archive']);
+
+export function requiresMergeEndpoint(toKind: StageKind): boolean {
+    return ENDPOINT_KINDS.has(toKind);
+}
 
 export interface TransitionInput {
     cardId: string;
@@ -32,20 +52,25 @@ export type TransitionError =
     | 'done_requires_review_user'
     | 'worktree_failed';
 
+/** Stages the caller can move a card to right now, given the current state and actor. */
+export function allowedTransitions(card: Card, actor: Actor): Stage[] {
+    const from = getStage(card.stage_id);
+    if (!from) return [];
+    if (from.kind === 'archive') return []; // immutable
+    const all = listStages(card.project_id);
+    return all.filter((s) => {
+        if (s.id === from.id) return false;
+        if (requiresMergeEndpoint(s.kind)) return false;
+        if (s.kind === 'done' && (from.kind !== 'review' || actor !== 'user')) return false;
+        return true;
+    });
+}
+
 /** Stage IDs the caller can move to right now, given the current state and actor. */
 export function transitionTargets(cardId: string, actor: Actor): string[] {
     const card = getCard(cardId);
     if (!card) return [];
-    const from = getStage(card.stage_id);
-    if (!from) return [];
-    const all = listStages(card.project_id);
-    return all.filter((s) => {
-        if (s.id === from.id) return false;
-        if (from.kind === 'archive') return false; // immutable
-        if (s.kind === 'archive') return false; // merge endpoint only
-        if (s.kind === 'done' && (from.kind !== 'review' || actor !== 'user')) return false;
-        return true;
-    }).map((s) => s.id);
+    return allowedTransitions(card, actor).map((s) => s.id);
 }
 
 export function transition(input: TransitionInput): TransitionResult {
@@ -77,11 +102,11 @@ export function transition(input: TransitionInput): TransitionResult {
         return { ok: false, code: 'archive_immutable', message: 'cards in archive stages are immutable', allowed: [] };
     }
 
-    if (to.kind === 'archive') {
+    if (requiresMergeEndpoint(to.kind)) {
         return {
             ok: false,
             code: 'archive_via_merge',
-            message: 'archive stages are only reachable via POST /cards/:id/merge',
+            message: `${to.kind} stages are only reachable via POST /cards/:id/merge`,
             hint: 'use the merge endpoint instead of a direct transition',
             allowed: allowed(),
         };
@@ -192,10 +217,16 @@ export type MergeError =
     | 'conflict'
     | 'merge_failed';
 
-export function merge(input: MergeInput): MergeResult {
-    const card = getCard(input.cardId);
-    if (!card) return { ok: false, code: 'card_not_found', message: 'card not found' };
+export type CanMergeResult =
+    | { ok: true }
+    | { ok: false; code: MergeError; message: string; hint?: string; allowed?: string[] };
 
+/**
+ * Preflight check for merge: card exists, is in a done-kind stage, has a
+ * worktree and a project, and the project has an archive-kind stage. Pure
+ * predicate — no DB writes, no git operations.
+ */
+export function canMerge(card: Card, actor: Actor = 'user'): CanMergeResult {
     const from = getStage(card.stage_id);
     if (!from) return { ok: false, code: 'stage_not_found', message: 'current stage missing' };
 
@@ -205,7 +236,7 @@ export function merge(input: MergeInput): MergeResult {
             code: 'merge_requires_done',
             message: `merge requires source kind=done, got ${from.kind}`,
             hint: 'approve the card from Review first, then merge from Done',
-            allowed: transitionTargets(input.cardId, input.actor || 'user'),
+            allowed: transitionTargets(card.id, actor),
         };
     }
 
@@ -224,6 +255,22 @@ export function merge(input: MergeInput): MergeResult {
             hint: 'add an archive-kind stage in settings',
         };
     }
+
+    return { ok: true };
+}
+
+export function merge(input: MergeInput): MergeResult {
+    const card = getCard(input.cardId);
+    if (!card) return { ok: false, code: 'card_not_found', message: 'card not found' };
+
+    const check = canMerge(card, input.actor || 'user');
+    if (!check.ok) return check;
+
+    // canMerge has already proven these exist; non-null assertion is safe here.
+    const from = getStage(card.stage_id)!;
+    const project = getProject(card.project_id)!;
+    const wt = getWorktreeByCard(card.id)!;
+    const archive = findByKind(listStages(card.project_id), 'archive')!;
 
     const strategy: MergeStrategy = input.strategy === 'merge' ? 'merge' : 'squash';
 
@@ -301,9 +348,30 @@ export function merge(input: MergeInput): MergeResult {
     };
 }
 
+export type CanAbandonResult =
+    | { ok: true }
+    | { ok: false; code: 'card_not_found' | 'stage_not_found' | 'archive_immutable'; message: string };
+
+/**
+ * Preflight check for abandon: card exists and isn't already in an archive
+ * stage (already merged). Pure predicate — does not touch the worktree.
+ */
+export function canAbandon(card: Card): CanAbandonResult {
+    const stage = getStage(card.stage_id);
+    if (!stage) return { ok: false, code: 'stage_not_found', message: 'current stage missing' };
+    if (stage.kind === 'archive') {
+        return { ok: false, code: 'archive_immutable', message: 'cards in archive stages are immutable' };
+    }
+    return { ok: true };
+}
+
 export function abandon(cardId: string, opts: { stashDirty?: boolean; actor?: Actor } = {}): AbandonResult | null {
     const card = getCard(cardId);
     if (!card) return null;
+    const check = canAbandon(card);
+    if (!check.ok) {
+        throw Object.assign(new Error(check.message), { code: check.code });
+    }
     const wt = getWorktreeByCard(cardId);
 
     const result = wt
