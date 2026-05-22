@@ -13,9 +13,9 @@ import {
 } from './paths';
 import { discover, readDaemonInfo, isPidAlive, type DaemonInfo } from './discover';
 
-export { discover, readDaemonInfo, isPidAlive } from './discover';
+// Re-exported for the lock-contention test in __tests__/lock.test.ts.
+export { discover } from './discover';
 export type { DaemonInfo } from './discover';
-export { CONCERTO_HOME, DAEMON_LOCK_FILE } from './paths';
 
 export interface DaemonClientOpts {
     // Override discovery. Useful for tests or for processes that already know the URL.
@@ -397,12 +397,3 @@ async function readEvents(
     }
 }
 
-let defaultClient: DaemonClient | null = null;
-
-/** Convenience: process-wide singleton. Most callers want this. */
-export function getDaemonClient(opts: DaemonClientOpts = {}): DaemonClient {
-    if (!defaultClient || opts.base || opts.token) {
-        defaultClient = new DaemonClient(opts);
-    }
-    return defaultClient;
-}
