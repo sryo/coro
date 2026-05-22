@@ -26,6 +26,35 @@ const cardChains = new Map<string, Promise<unknown>>();
 // per-card abort controller so the daemon can interrupt the in-flight turn
 const cardAborts = new Map<string, AbortController>();
 
+const RATE_LIMIT_RE = /rate[\s_-]?limit|overloaded|429|too many requests/i;
+const RETRY_AFTER_RE = /(?:retry[\s_-]?after[:\s]*|in\s+)(\d+)\s*(?:s|sec|seconds?)?/i;
+const MAX_RETRY_ATTEMPTS = 3;
+const MAX_BACKOFF_MS = 60_000;
+
+export function classifyRateLimit(err: unknown): { isRateLimit: boolean; retryAfterMs?: number } {
+    const msg = (err as { message?: string })?.message || String(err);
+    if (!RATE_LIMIT_RE.test(msg)) return { isRateLimit: false };
+    const m = msg.match(RETRY_AFTER_RE);
+    const retryAfterMs = m ? parseInt(m[1], 10) * 1000 : undefined;
+    return { isRateLimit: true, retryAfterMs };
+}
+
+function sleepWithAbort(ms: number, signal: AbortSignal): Promise<void> {
+    return new Promise((resolve, reject) => {
+        if (signal.aborted) return reject(new Error('aborted'));
+        const onAbort = () => {
+            clearTimeout(t);
+            signal.removeEventListener('abort', onAbort);
+            reject(new Error('aborted'));
+        };
+        const t = setTimeout(() => {
+            signal.removeEventListener('abort', onAbort);
+            resolve();
+        }, ms);
+        signal.addEventListener('abort', onAbort);
+    });
+}
+
 export function getConversationByCard(cardId: string): ConversationRow | null {
     const row = getDb().prepare('SELECT * FROM conversations WHERE card_id = ?').get(cardId) as ConversationRow | undefined;
     return row || null;
@@ -108,6 +137,53 @@ export function abortTurn(cardId: string): boolean {
     return true;
 }
 
+/** Card ids currently mid-turn in-memory. Snapshot included in the SSE 'connected'
+ * event so reconnecting dashboards can reconcile their streaming set against
+ * actual daemon state (and unstick after a daemon restart). */
+export function getStreamingCardIds(projectId?: string): string[] {
+    const ids = Array.from(cardAborts.keys());
+    if (!projectId) return ids;
+    return ids.filter((id) => {
+        const c = getCard(id);
+        return c?.project_id === projectId;
+    });
+}
+
+/** Called at daemon boot. Marks any turns the daemon was mid-flight on as
+ * orphaned in the DB and emits a synthetic card:turn_failed so a still-open
+ * dashboard tab (reconnecting after the restart) unsticks the streaming card.
+ * In-memory state was already lost on the crash; this surfaces it. */
+export function recoverOrphanedTurns(): number {
+    const db = getDb();
+    const rows = db
+        .prepare("SELECT id, card_id, project_id FROM turns WHERE status = 'running'")
+        .all() as Array<{ id: string; card_id: string; project_id: string }>;
+    if (rows.length === 0) return 0;
+    db.prepare("UPDATE turns SET status = 'orphaned', ended_at = ? WHERE status = 'running'")
+        .run(Date.now());
+    for (const r of rows) {
+        emitEvent('card:turn_failed', {
+            card_id: r.card_id,
+            project_id: r.project_id,
+            turn_id: r.id,
+            message: 'daemon restarted; turn did not complete',
+        });
+    }
+    return rows.length;
+}
+
+function recordTurnStart(turnId: string, card: Card): void {
+    getDb()
+        .prepare('INSERT INTO turns (id, card_id, project_id, started_at, status) VALUES (?, ?, ?, ?, ?)')
+        .run(turnId, card.id, card.project_id, Date.now(), 'running');
+}
+
+function recordTurnEnd(turnId: string, status: 'complete' | 'failed'): void {
+    getDb()
+        .prepare("UPDATE turns SET status = ?, ended_at = ? WHERE id = ? AND status = 'running'")
+        .run(status, Date.now(), turnId);
+}
+
 export interface SendMessageResult {
     user_message_id: string;
     turn_id: string;
@@ -179,18 +255,43 @@ async function runTurn(
     if (!card.worktree_path) return;
     const ac = new AbortController();
     cardAborts.set(card.id, ac);
+    recordTurnStart(turnId, card);
     emitEvent('card:turn_started', { card_id: card.id, project_id: card.project_id, turn_id: turnId });
 
+    let success = false;
     try {
-        const result = await runClaude(userMessage, {
-            cwd: card.worktree_path,
-            systemPrompt,
-            model: model || undefined,
-            continueSession: true,
-            abortSignal: ac.signal,
-        }, (e: ClaudeEvent) => {
-            handleEvent(card, conversationId, turnId, e);
-        });
+        let result;
+        let attempt = 0;
+        while (true) {
+            attempt++;
+            try {
+                result = await runClaude(userMessage, {
+                    cwd: card.worktree_path,
+                    systemPrompt,
+                    model: model || undefined,
+                    continueSession: true,
+                    abortSignal: ac.signal,
+                }, (e: ClaudeEvent) => {
+                    handleEvent(card, conversationId, turnId, e);
+                });
+                break;
+            } catch (err) {
+                if (ac.signal.aborted) throw err;
+                const { isRateLimit, retryAfterMs } = classifyRateLimit(err);
+                if (!isRateLimit || attempt >= MAX_RETRY_ATTEMPTS) throw err;
+                const backoff = Math.min(MAX_BACKOFF_MS, 2000 * 2 ** (attempt - 1));
+                const delayMs = (retryAfterMs ?? backoff) + Math.floor(Math.random() * 1000);
+                emitEvent('card:rate_limited', {
+                    card_id: card.id,
+                    project_id: card.project_id,
+                    turn_id: turnId,
+                    attempt,
+                    max_attempts: MAX_RETRY_ATTEMPTS,
+                    delay_ms: delayMs,
+                });
+                await sleepWithAbort(delayMs, ac.signal);
+            }
+        }
 
         if (result.finalText) {
             const finalRow = appendMessage({
@@ -214,8 +315,10 @@ async function runTurn(
             usage: result.usage,
             duration_ms: result.durationMs,
         });
+        success = true;
     } finally {
         if (cardAborts.get(card.id) === ac) cardAborts.delete(card.id);
+        recordTurnEnd(turnId, success ? 'complete' : 'failed');
     }
 }
 

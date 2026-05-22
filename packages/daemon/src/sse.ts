@@ -1,5 +1,5 @@
 import http from 'http';
-import { onEvent } from '@coro/core';
+import { onEvent, conversations } from '@coro/core';
 
 interface Client {
     res: http.ServerResponse;
@@ -8,6 +8,19 @@ interface Client {
 }
 
 const clients = new Set<Client>();
+
+// Heartbeat keeps the client's watchdog from triggering an unnecessary reconnect
+// on idle projects. The dashboard's EventSource wrapper expects something on the
+// wire at least every 60s.
+const HEARTBEAT_MS = 20_000;
+const heartbeatTimer = setInterval(() => {
+    if (clients.size === 0) return;
+    const payload = `event: heartbeat\ndata: {}\n\n`;
+    for (const client of clients) {
+        try { client.res.write(payload); } catch { clients.delete(client); }
+    }
+}, HEARTBEAT_MS);
+heartbeatTimer.unref?.();
 
 export function addSSEClient(res: http.ServerResponse, opts: { cardId?: string; projectId?: string } = {}): void {
     clients.add({ res, cardId: opts.cardId, projectId: opts.projectId });
@@ -29,9 +42,12 @@ export function attachSSEStream(
         'Connection': 'keep-alive',
         'Access-Control-Allow-Origin': '*',
     });
+    const streamingCardIds = scope.cardId
+        ? (conversations.getStreamingCardIds().includes(scope.cardId) ? [scope.cardId] : [])
+        : conversations.getStreamingCardIds(scope.projectId);
     const greeting = scope.cardId
-        ? { card_id: scope.cardId, timestamp: Date.now() }
-        : { project_id: scope.projectId, timestamp: Date.now() };
+        ? { card_id: scope.cardId, timestamp: Date.now(), streaming_card_ids: streamingCardIds }
+        : { project_id: scope.projectId, timestamp: Date.now(), streaming_card_ids: streamingCardIds };
     res.write(`event: connected\ndata: ${JSON.stringify(greeting)}\n\n`);
     addSSEClient(res, scope);
     res.on('close', () => removeSSEClient(res));

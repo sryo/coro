@@ -65,6 +65,7 @@ const KNOWN_EVENTS = [
     'card:turn_failed',
     'card:usage',
     'card:error',
+    'card:rate_limited',
     'card:stage_changed',
     'card:note',
     'card:abandoned',

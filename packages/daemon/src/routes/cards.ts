@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { cards, projects, controller, worktrees, createCardEvent } from '@coro/core';
+import { cards, projects, controller, worktrees, createCardEvent, listCardEvents } from '@coro/core';
 import { httpError, errorStatus, parseJsonBody } from './_helpers';
 import {
     createCardBody,
@@ -8,6 +8,7 @@ import {
     noteBody,
     mergeBody,
     abandonBody,
+    renameBranchBody,
 } from './schemas';
 
 const router = new Hono();
@@ -104,6 +105,16 @@ router.get('/cards/:id/worktree', (c) => {
     return c.json(status);
 });
 
+router.patch('/cards/:id/branch', async (c) => {
+    const parsed = await parseJsonBody(c, renameBranchBody);
+    if (!parsed.ok) return httpError(c, 400, 'bad_request', parsed.message);
+    const card = cards.getCard(c.req.param('id'));
+    if (!card) return httpError(c, 404, 'card_not_found', 'card not found');
+    const result = worktrees.renameCardBranch(card.id, parsed.data.branch_name);
+    if (!result.ok) return httpError(c, 400, 'rename_failed', result.reason);
+    return c.json(cards.getCard(card.id));
+});
+
 router.get('/cards/:id/diff', (c) => {
     const against = c.req.query('against') === 'head' ? 'head' : 'base';
     const diff = worktrees.worktreeDiff(c.req.param('id'), against);
@@ -117,15 +128,26 @@ router.post('/cards/:id/notes', async (c) => {
     const card = cards.getCard(c.req.param('id'));
     if (!card) return httpError(c, 404, 'not_found', 'card not found');
     const actor = controller.parseActor(body.actor, 'agent');
+    const noteKind = body.kind || 'info';
     const at = createCardEvent({
         cardId: card.id,
         projectId: card.project_id,
         kind: 'note',
         actor,
-        payload: { content: body.content },
-        emitPayload: { content: body.content },
+        payload: { content: body.content, kind: noteKind },
+        emitPayload: { content: body.content, kind: noteKind },
     });
     return c.json({ ok: true, at });
+});
+
+router.get('/cards/:id/events', (c) => {
+    const card = cards.getCard(c.req.param('id'));
+    if (!card) return httpError(c, 404, 'not_found', 'card not found');
+    const sinceParam = c.req.query('since');
+    const since = sinceParam ? Math.max(0, parseInt(sinceParam, 10) || 0) : 0;
+    const limitParam = c.req.query('limit');
+    const limit = limitParam ? Math.min(500, Math.max(1, parseInt(limitParam, 10) || 200)) : 200;
+    return c.json(listCardEvents(card.id, since, limit));
 });
 
 router.post('/cards/:id/merge', async (c) => {

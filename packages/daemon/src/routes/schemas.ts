@@ -27,6 +27,7 @@ export const transitionBody = z.object({
 export const noteBody = z.object({
     content: z.string().trim().min(1, 'content required'),
     actor: actorSchema.optional(),
+    kind: z.enum(['info', 'question']).optional(),
 });
 
 export const mergeBody = z.object({
@@ -68,6 +69,10 @@ export const sendMessageBody = z.object({
     content: z.string().trim().min(1, 'content required'),
     client_message_id: z.string().optional(),
 });
+
+export const renameBranchBody = z.object({
+    branch_name: z.string().min(1, 'branch_name required'),
+}).strict();
 
 export type CreateCardBody = z.infer<typeof createCardBody>;
 export type UpdateCardBody = z.infer<typeof updateCardBody>;

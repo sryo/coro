@@ -17,7 +17,7 @@ The daemon hosts an MCP server scoped to your card:
 - `coro.get_card` — refresh metadata.
 - `coro.list_stages` — see the project's stages in order.
 - `coro.set_status` — move the card. You **cannot** target `done` or `merged`.
-- `coro.add_note` — append to the card's activity log.
+- `coro.add_note` — append to the card's activity log. Pass `kind: "question"` if you're blocked on a user decision and need them to answer before you continue; the dashboard surfaces these distinctly.
 - `coro.request_review` — mark ready for human review, with a one-paragraph summary.
 
 ### Rules

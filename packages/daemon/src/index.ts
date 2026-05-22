@@ -11,6 +11,7 @@ import {
     setLogSink,
     getDb,
     worktrees,
+    conversations,
 } from '@coro/core';
 import { DaemonClient } from '@coro/client';
 import { startServer } from './server';
@@ -86,6 +87,9 @@ async function main() {
     rotateTimer.unref?.();
 
     getDb();
+
+    const orphaned = conversations.recoverOrphanedTurns();
+    if (orphaned > 0) log.info('recovered orphaned turns', { count: orphaned });
 
     const port = parseInt(process.env.CORO_API_PORT || String(DEFAULT_API_PORT), 10);
     const token = generateToken();

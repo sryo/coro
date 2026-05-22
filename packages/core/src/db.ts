@@ -155,4 +155,19 @@ const MIGRATIONS: ReadonlyArray<{ version: number; sql: string }> = [
             ALTER TABLE worktrees ADD COLUMN merge_conflict_at INTEGER;
         `,
     },
+    {
+        version: 5,
+        sql: `
+            CREATE TABLE turns (
+                id TEXT PRIMARY KEY,
+                card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+                project_id TEXT NOT NULL,
+                started_at INTEGER NOT NULL,
+                ended_at INTEGER,
+                status TEXT NOT NULL DEFAULT 'running'
+            );
+            CREATE INDEX turns_card ON turns(card_id);
+            CREATE INDEX turns_status ON turns(status);
+        `,
+    },
 ];

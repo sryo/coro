@@ -64,28 +64,32 @@ export function createCard(input: CreateCardInput): Card {
     const now = Date.now();
     const slug = slugify(input.title);
 
-    const maxRow = db
-        .prepare('SELECT COALESCE(MAX(position), -1) AS max FROM cards WHERE project_id = ? AND stage_id = ?')
-        .get(input.project_id, stage.id) as { max: number };
-    const position = maxRow.max + 1;
-
-    db.prepare(`
-        INSERT INTO cards (
-            id, project_id, slug, title, description, stage_id,
-            position, created_at, updated_at, model_override
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-        id,
-        input.project_id,
-        slug,
-        input.title,
-        input.description ?? null,
-        stage.id,
-        position,
-        now,
-        now,
-        input.model_override ?? null,
-    );
+    // Atomic MAX+1 + INSERT so two concurrent createCard calls into the same stage
+    // can't land on the same position. SQLite serializes the transaction.
+    const tx = db.transaction(() => {
+        const maxRow = db
+            .prepare('SELECT COALESCE(MAX(position), -1) AS max FROM cards WHERE project_id = ? AND stage_id = ?')
+            .get(input.project_id, stage.id) as { max: number };
+        const position = maxRow.max + 1;
+        db.prepare(`
+            INSERT INTO cards (
+                id, project_id, slug, title, description, stage_id,
+                position, created_at, updated_at, model_override
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+            id,
+            input.project_id,
+            slug,
+            input.title,
+            input.description ?? null,
+            stage.id,
+            position,
+            now,
+            now,
+            input.model_override ?? null,
+        );
+    });
+    tx();
 
     const card = getCard(id)!;
     emitEvent('card:created', { card_id: id, project_id: input.project_id });

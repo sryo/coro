@@ -274,9 +274,13 @@ export function merge(input: MergeInput): MergeResult {
 
     const strategy: MergeStrategy = input.strategy === 'merge' ? 'merge' : 'squash';
 
+    // Merge into the base captured when the worktree was created, not the live
+    // project.base_branch. Changing the project's default after a card has
+    // started shouldn't silently retarget its in-flight merge.
+    const mergeBase = wt.base_branch;
     let pre;
     try {
-        pre = precheckMerge(project.repo_path, project.base_branch, wt.branch);
+        pre = precheckMerge(project.repo_path, mergeBase, wt.branch);
     } catch (err: any) {
         return { ok: false, code: 'merge_failed', message: `precheck failed: ${err.message}` };
     }
@@ -295,7 +299,7 @@ export function merge(input: MergeInput): MergeResult {
 
     let result;
     try {
-        result = performMerge(project.repo_path, project.base_branch, wt.branch, strategy, commitMessage, pre);
+        result = performMerge(project.repo_path, mergeBase, wt.branch, strategy, commitMessage, pre);
     } catch (err: any) {
         if (err.code === 'conflict') {
             setMergeConflict(card.id, Date.now());

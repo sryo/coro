@@ -13,13 +13,24 @@ interface Props {
     worktree: WorktreeStatus | null;
 }
 
-export function CardDetailHeader({ card: initialCard, stages, worktree }: Props) {
+export function CardDetailHeader({ card: initialCard, stages, worktree: initialWorktree }: Props) {
     const [card, setCard] = useState<Card>(initialCard);
+    const [worktree, setWorktree] = useState<WorktreeStatus | null>(initialWorktree);
     void stages;
 
     async function renameTitle(title: string) {
         const updated = await api.patch<Card>(`/cards/${card.id}`, { title });
         setCard(updated);
+    }
+
+    async function renameBranch(branch_name: string) {
+        const updated = await api.patch<Card>(`/cards/${card.id}/branch`, { branch_name });
+        setCard(updated);
+        // Refetch worktree so the displayed branch and the diff link update.
+        try {
+            const fresh = await api.get<WorktreeStatus>(`/cards/${card.id}/worktree`);
+            setWorktree(fresh);
+        } catch {}
     }
 
     return (
@@ -34,7 +45,12 @@ export function CardDetailHeader({ card: initialCard, stages, worktree }: Props)
 
             {worktree && worktree.exists ? (
                 <dl className="space-y-2 text-sm">
-                    <DefRow label="branch" value={worktree.branch} mono />
+                    <div className="flex gap-3">
+                        <dt className="w-20 shrink-0 text-xs text-[var(--muted-foreground)]">branch</dt>
+                        <dd className="font-mono text-xs break-all">
+                            <InlineText value={worktree.branch} placeholder="branch" onSubmit={renameBranch} />
+                        </dd>
+                    </div>
                     <DefRow label="base" value={`${worktree.base_branch} @ ${worktree.base_sha.slice(0, 7)}`} mono />
                     <DefRow label="diff" value={`+${worktree.ahead} / -${worktree.behind}, ${worktree.dirty_files} dirty`} />
                     {worktree.last_commit && (

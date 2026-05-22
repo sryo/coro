@@ -8,6 +8,18 @@ export type EventKind = 'stage_change' | 'note' | 'merge' | 'abandon';
 
 export type EventActor = 'user' | 'agent' | 'system';
 
+export type NoteKind = 'info' | 'question';
+
+export interface CardEvent {
+    id: number;
+    card_id: string;
+    project_id: string;
+    kind: EventKind;
+    actor: EventActor;
+    payload_json: string;
+    created_at: number;
+}
+
 export type Actor = EventActor;
 
 export interface Project {
@@ -19,6 +31,10 @@ export interface Project {
     project_brief: string | null;
     settings_json: string;
     created_at: number;
+    /** Optional — only present on GET /projects?include=counts. */
+    card_count?: number;
+    /** Optional — only present on GET /projects?include=counts. */
+    last_activity_at?: number | null;
 }
 
 export interface Stage {

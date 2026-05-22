@@ -43,6 +43,13 @@ export function useBoardState(projectId: string, initialCards: Card[]): BoardSta
     useEffect(() => {
         const es = openProjectStream(projectId, (type, data) => {
             const cardId = data?.card_id;
+            if (type === 'connected') {
+                // Reconcile streaming set against actual daemon state. Survives
+                // daemon restarts: the daemon's live in-memory set is the truth.
+                const live = Array.isArray(data?.streaming_card_ids) ? data.streaming_card_ids : [];
+                setStreamingCardIds(new Set(live));
+                return;
+            }
             if (type === 'card:created' && cardId) {
                 api.get<Card>(`/cards/${cardId}`)
                     .then((card) => {

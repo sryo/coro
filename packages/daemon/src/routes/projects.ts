@@ -5,7 +5,12 @@ import { createProjectBody, updateProjectBody } from './schemas';
 
 const router = new Hono();
 
-router.get('/projects', (c) => c.json(projects.listProjects()));
+router.get('/projects', (c) => {
+    if (c.req.query('include') === 'counts') {
+        return c.json(projects.listProjectsWithCounts());
+    }
+    return c.json(projects.listProjects());
+});
 
 router.get('/projects/by-path', (c) => {
     const repoPath = c.req.query('path');
@@ -44,9 +49,25 @@ router.get('/projects/:id', (c) => {
 router.patch('/projects/:id', async (c) => {
     const parsed = await parseJsonBody(c, updateProjectBody);
     if (!parsed.ok) return httpError(c, 400, 'bad_request', parsed.message);
-    const project = projects.updateProject(c.req.param('id'), parsed.data);
+    try {
+        const project = projects.updateProject(c.req.param('id'), parsed.data);
+        if (!project) return httpError(c, 404, 'not_found', 'project not found');
+        return c.json(project);
+    } catch (err: any) {
+        if (err instanceof projects.UpdateProjectError) {
+            return httpError(c, 400, err.code, err.message);
+        }
+        throw err;
+    }
+});
+
+router.delete('/projects/:id', (c) => {
+    const id = c.req.param('id');
+    const project = projects.getProject(id);
     if (!project) return httpError(c, 404, 'not_found', 'project not found');
-    return c.json(project);
+    const ok = projects.deleteProject(id);
+    if (!ok) return httpError(c, 500, 'delete_failed', 'project delete failed');
+    return c.json({ ok: true });
 });
 
 export default router;

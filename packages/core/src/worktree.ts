@@ -44,6 +44,47 @@ function gitCommonDir(repoPath: string): string {
     return path.isAbsolute(raw) ? raw : path.resolve(repoPath, raw);
 }
 
+function worktreeGitDir(worktreePath: string): string {
+    const raw = git(worktreePath, ['rev-parse', '--git-dir']);
+    return path.isAbsolute(raw) ? raw : path.resolve(worktreePath, raw);
+}
+
+// Per-worktree hooks require extensions.worktreeConfig=true on the main repo
+// so `git config --worktree core.hooksPath ...` is honored. Safe, idempotent:
+// the extension is a namespace enabler, not a behavior change.
+function ensureWorktreeConfigExtension(repoPath: string): void {
+    const current = gitSafe(repoPath, ['config', '--get', 'extensions.worktreeConfig']);
+    if (current === 'true') return;
+    git(repoPath, ['config', 'extensions.worktreeConfig', 'true']);
+}
+
+// Refuse `git push` from agent worktrees, and stamp every commit with a
+// Coro-Card-Id trailer so `git log --grep` finds it forever. Hooks live in
+// the per-worktree git-dir (cleaned up automatically by `git worktree remove`).
+function installAgentHooks(repoPath: string, worktreePath: string, cardId: string): void {
+    try {
+        ensureWorktreeConfigExtension(repoPath);
+        const hooksDir = path.join(worktreeGitDir(worktreePath), 'hooks');
+        fs.mkdirSync(hooksDir, { recursive: true });
+
+        const prePush = `#!/bin/sh\n`
+            + `echo "coro: agent worktree for card ${cardId} cannot push; commit locally and merge from the dashboard." >&2\n`
+            + `exit 1\n`;
+        fs.writeFileSync(path.join(hooksDir, 'pre-push'), prePush, { mode: 0o755 });
+
+        const commitMsg = `#!/bin/sh\n`
+            + `exec git interpret-trailers --if-exists addIfDifferent \\\n`
+            + `    --trailer "Coro-Card-Id: ${cardId}" --in-place "$1"\n`;
+        fs.writeFileSync(path.join(hooksDir, 'commit-msg'), commitMsg, { mode: 0o755 });
+
+        git(worktreePath, ['config', '--worktree', 'core.hooksPath', hooksDir]);
+    } catch {
+        // Hooks are a safety net, not load-bearing — never fail worktree creation
+        // because we couldn't install them. The user's `--dangerously-skip-permissions`
+        // stance is unchanged.
+    }
+}
+
 function truncateSlug(slug: string, max = 30): string {
     return slug.slice(0, max).replace(/-+$/, '') || 'card';
 }
@@ -84,6 +125,7 @@ export function createWorktree(input: CreateWorktreeInput): WorktreeRecord {
     fs.mkdirSync(path.dirname(worktreePath), { recursive: true });
 
     git(input.repoPath, ['worktree', 'add', '-b', branch, worktreePath, input.baseBranch]);
+    installAgentHooks(input.repoPath, worktreePath, input.cardId);
 
     const now = Date.now();
     const id = nanoid(10);
@@ -345,6 +387,34 @@ export function pruneAbandonedStashes(maxAgeMs: number): { deleted: { repo: stri
         }
     }
     return { deleted };
+}
+
+/** Rename a card's branch via `git branch -m` inside the worktree. Updates the
+ * worktrees row and cards.branch_name. Refuses if the new name collides with an
+ * existing local branch. The card's project_id is needed for the SSE event;
+ * read it from the cards row to avoid threading it through callers. */
+export function renameCardBranch(cardId: string, newName: string): { ok: true } | { ok: false; reason: string } {
+    const wt = getWorktreeByCard(cardId);
+    if (!wt) return { ok: false, reason: 'card has no worktree' };
+    const trimmed = newName.trim();
+    if (!trimmed) return { ok: false, reason: 'branch name required' };
+    if (trimmed === wt.branch) return { ok: true };
+    if (!/^[\w./-]+$/.test(trimmed) || trimmed.startsWith('-') || trimmed.endsWith('.')) {
+        return { ok: false, reason: 'invalid branch name' };
+    }
+    if (gitSafe(wt.repo_path, ['show-ref', '--verify', '--quiet', `refs/heads/${trimmed}`]) !== null) {
+        return { ok: false, reason: `branch '${trimmed}' already exists` };
+    }
+    const result = gitWithOutput(wt.path, ['branch', '-m', trimmed]);
+    if (result.status !== 0) {
+        return { ok: false, reason: result.stderr.trim() || 'rename failed' };
+    }
+    const db = getDb();
+    db.prepare('UPDATE worktrees SET branch = ? WHERE id = ?').run(trimmed, wt.id);
+    db.prepare('UPDATE cards SET branch_name = ?, updated_at = ? WHERE id = ?').run(trimmed, Date.now(), cardId);
+    const card = db.prepare('SELECT project_id FROM cards WHERE id = ?').get(cardId) as { project_id: string } | undefined;
+    emitEvent('card:worktree_changed', { card_id: cardId, project_id: card?.project_id, branch: trimmed });
+    return { ok: true };
 }
 
 export function refreshWorktreeMetrics(cardId: string): void {

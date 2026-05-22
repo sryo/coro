@@ -95,6 +95,66 @@ describe('worktree.createWorktree', () => {
         expect(second.id).toBe(first.id);
         expect(second.path).toBe(first.path);
     });
+
+    it('installs a pre-push hook that refuses to push the agent branch', () => {
+        const wt = mod.worktree.createWorktree({
+            cardId: card.id, slug: card.slug, repoPath: repo, baseBranch: 'main',
+        });
+        // Set up a bare repo as a fake remote so `git push` has somewhere to go.
+        const remote = fs.mkdtempSync(path.join(os.tmpdir(), 'coro-wt-remote-'));
+        git(remote, ['init', '--bare', '-q', '-b', 'main']);
+        git(wt.path, ['remote', 'add', 'origin', remote]);
+        let err: any;
+        try {
+            execFileSync('git', ['-C', wt.path, 'push', 'origin', 'HEAD'], { encoding: 'utf8' });
+        } catch (e) { err = e; }
+        expect(err).toBeTruthy();
+        const stderr = err.stderr?.toString() || '';
+        expect(stderr).toMatch(/coro: agent worktree/);
+        expect(stderr).toContain(card.id);
+    });
+
+    it('stamps Coro-Card-Id trailer on every commit', () => {
+        const wt = mod.worktree.createWorktree({
+            cardId: card.id, slug: card.slug, repoPath: repo, baseBranch: 'main',
+        });
+        // Inherit committer identity from outer test setup; worktrees share it.
+        git(wt.path, ['config', 'user.email', 'agent@example.com']);
+        git(wt.path, ['config', 'user.name', 'Agent']);
+        git(wt.path, ['config', 'commit.gpgsign', 'false']);
+        fs.writeFileSync(path.join(wt.path, 'note.md'), '# note\n');
+        git(wt.path, ['add', '-A']);
+        git(wt.path, ['commit', '-q', '-m', 'add note']);
+        const trailers = git(wt.path, ['log', '-1', '--pretty=%(trailers:only)']);
+        expect(trailers).toContain(`Coro-Card-Id: ${card.id}`);
+    });
+
+    it('is idempotent when a commit already carries the trailer', () => {
+        const wt = mod.worktree.createWorktree({
+            cardId: card.id, slug: card.slug, repoPath: repo, baseBranch: 'main',
+        });
+        git(wt.path, ['config', 'user.email', 'agent@example.com']);
+        git(wt.path, ['config', 'user.name', 'Agent']);
+        git(wt.path, ['config', 'commit.gpgsign', 'false']);
+        fs.writeFileSync(path.join(wt.path, 'a.md'), 'a\n');
+        git(wt.path, ['add', '-A']);
+        git(wt.path, ['commit', '-q', '-m', `add a\n\nCoro-Card-Id: ${card.id}\n`]);
+        const trailers = git(wt.path, ['log', '-1', '--pretty=%(trailers:only)']);
+        // Trailer present exactly once.
+        const matches = trailers.match(new RegExp(`Coro-Card-Id: ${card.id}`, 'g')) || [];
+        expect(matches.length).toBe(1);
+    });
+
+    it('leaves the main repo hooks untouched', () => {
+        mod.worktree.createWorktree({
+            cardId: card.id, slug: card.slug, repoPath: repo, baseBranch: 'main',
+        });
+        // The main repo gets extensions.worktreeConfig=true but no hook files.
+        const ext = git(repo, ['config', '--get', 'extensions.worktreeConfig']);
+        expect(ext).toBe('true');
+        const mainHooksPath = path.join(repo, '.git', 'hooks', 'pre-push');
+        expect(fs.existsSync(mainHooksPath)).toBe(false);
+    });
 });
 
 describe('worktree.precheckMerge', () => {

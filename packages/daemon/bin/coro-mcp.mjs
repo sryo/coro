@@ -72,12 +72,13 @@ const TOOLS = [
     },
     {
         name: 'coro.add_note',
-        description: 'Append a note to this card\'s activity log. The user sees these in the dashboard. Use for status updates, decisions, or anything they should know at a glance.',
+        description: 'Append a note to this card\'s activity log. The user sees these in the dashboard. Use for status updates, decisions, or anything they should know at a glance. Pass kind:"question" if you\'re blocked and need the user to answer before you can continue — the dashboard surfaces these distinctly.',
         inputSchema: {
             type: 'object',
             required: ['content'],
             properties: {
                 content: { type: 'string', description: 'Note body (markdown ok).' },
+                kind: { type: 'string', enum: ['info', 'question'], description: 'Default "info". Use "question" when waiting on a user decision before continuing.' },
             },
         },
     },
@@ -146,8 +147,9 @@ async function callTool(name, args) {
         case 'coro.add_note': {
             const content = String(args?.content || '').trim();
             if (!content) return errorContent('content is required');
-            await api('POST', `/cards/${CARD_ID}/notes`, { content });
-            return textContent('note added');
+            const kind = args?.kind === 'question' ? 'question' : undefined;
+            await api('POST', `/cards/${CARD_ID}/notes`, kind ? { content, kind } : { content });
+            return textContent(kind === 'question' ? 'note added (question; user notified)' : 'note added');
         }
         case 'coro.request_review': {
             const card = await api('GET', `/cards/${CARD_ID}`);

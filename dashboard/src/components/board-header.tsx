@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import type { Project } from '@coro/types';
 import { InlineText } from '@/components/inline-edit';
+import { ProjectSwitcher } from '@/components/project-switcher';
 
 interface Props {
     project: Project;
@@ -52,6 +53,7 @@ export function BoardHeader({ project }: Props) {
                 >
                     details
                 </Link>
+                <ProjectSwitcher currentId={project.id} />
             </div>
         </header>
     );
